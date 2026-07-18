@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎪 摸鱼乐园 — 5个摸鱼小玩具</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='54' font-size='54'>🎪</text></svg>">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    background: radial-gradient(ellipse at 50% 0%, #1a1a3e 0%, #0d0d1a 60%, #050510 100%);
+    min-height: 100vh;
+    color: #e0e0e0;
+    overflow-x: hidden;
+    cursor: default;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Floating Emoji Background ===== */
+  .bg-emoji {
+    position: fixed;
+    font-size: 28px;
+    opacity: 0.06;
+    pointer-events: none;
+    z-index: 0;
+    animation: floatUp linear infinite;
+  }
+  @keyframes floatUp {
+    0%   { transform: translateY(105vh) rotate(0deg) scale(0.8); }
+    100% { transform: translateY(-15vh) rotate(360deg) scale(1.3); }
+  }
+
+  /* ===== Main Container ===== */
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+
+  /* ===== Header ===== */
+  .header {
+    text-align: center;
+    padding: 50px 0 20px;
+  }
+  .header .icon {
+    font-size: 72px;
+    animation: bounce 2s ease-in-out infinite;
+    display: block;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-18px); }
+  }
+  .header h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    background: linear-gradient(135deg, #ffd700, #ff6b6b, #a855f7, #3b82f6, #22c55e);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 5s ease infinite;
+    margin: 8px 0;
+  }
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .header .subtitle {
+    font-size: 1.1rem;
+    color: #8888aa;
+    letter-spacing: 0.08em;
+  }
+
+  /* ===== Card Grid ===== */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 28px;
+    margin-top: 44px;
+  }
+
+  /* ===== Card ===== */
+  .card {
+    background: linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 20px;
+    padding: 32px 28px 28px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.35s ease,
+                border-color 0.35s ease;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .card:nth-child(1)::before { background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,107,107,0.08)); }
+  .card:nth-child(2)::before { background: linear-gradient(135deg, rgba(255,107,107,0.12), rgba(168,85,247,0.08)); }
+  .card:nth-child(3)::before { background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(59,130,246,0.08)); }
+  .card:nth-child(4)::before { background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.08)); }
+  .card:nth-child(5)::before { background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(34,197,94,0.08)); }
+  .card:nth-child(6)::before { background: linear-gradient(135deg, rgba(255,165,2,0.12), rgba(124,92,231,0.08)); }
+  .card:nth-child(7)::before { background: linear-gradient(135deg, rgba(212,165,116,0.12), rgba(255,215,0,0.08)); }
+  .card:nth-child(8)::before { background: linear-gradient(135deg, rgba(224,224,224,0.10), rgba(120,120,120,0.06)); }
+  .card:nth-child(9)::before { background: linear-gradient(135deg, rgba(0,255,65,0.10), rgba(15,255,15,0.05)); }
+
+  .card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.15) inset;
+    border-color: rgba(255,255,255,0.2);
+  }
+  .card:hover::before { opacity: 1; }
+  .card > * { position: relative; z-index: 1; }
+
+  .card .emoji {
+    font-size: 56px;
+    display: block;
+    margin-bottom: 12px;
+    animation: cardEmojiFloat 4s ease-in-out infinite;
+  }
+  .card:nth-child(2) .emoji { animation-delay: -0.5s; }
+  .card:nth-child(3) .emoji { animation-delay: -1.2s; }
+  .card:nth-child(4) .emoji { animation-delay: -2.0s; }
+  .card:nth-child(5) .emoji { animation-delay: -3.1s; }
+  .card:nth-child(6) .emoji { animation-delay: -2.3s; }
+  .card:nth-child(7) .emoji { animation-delay: -1.7s; }
+  .card:nth-child(8) .emoji { animation-delay: -0.9s; }
+  .card:nth-child(9) .emoji { animation-delay: -2.8s; }
+  @keyframes cardEmojiFloat {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-10px) scale(1.08); }
+  }
+
+  .card h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .card .desc {
+    font-size: 0.9rem;
+    color: #9999bb;
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .card .stars {
+    font-size: 0.85rem;
+    color: #ffd700;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+  }
+  .card .stars .label {
+    color: #7777aa;
+    font-size: 0.75rem;
+    margin-left: 4px;
+    letter-spacing: 0;
+  }
+  .card .play-btn {
+    display: inline-block;
+    padding: 8px 24px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.05);
+    color: #ddd;
+    transition: all 0.25s ease;
+  }
+  .card:hover .play-btn {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.4);
+    box-shadow: 0 0 20px rgba(255,255,255,0.08);
+  }
+  .card:nth-child(1):hover .play-btn { color: #ffd700; border-color: rgba(255,215,0,0.5); }
+  .card:nth-child(2):hover .play-btn { color: #ff6b6b; border-color: rgba(255,107,107,0.5); }
+  .card:nth-child(3):hover .play-btn { color: #a855f7; border-color: rgba(168,85,247,0.5); }
+  .card:nth-child(4):hover .play-btn { color: #22c55e; border-color: rgba(34,197,94,0.5); }
+  .card:nth-child(5):hover .play-btn { color: #3b82f6; border-color: rgba(59,130,246,0.5); }
+  .card:nth-child(6):hover .play-btn { color: #ffa502; border-color: rgba(255,165,2,0.5); }
+  .card:nth-child(7):hover .play-btn { color: #d4a574; border-color: rgba(212,165,116,0.5); }
+  .card:nth-child(8):hover .play-btn { color: #eeeeee; border-color: rgba(224,224,224,0.5); }
+  .card:nth-child(9):hover .play-btn { color: #00ff41; border-color: rgba(0,255,65,0.5); }
+
+  /* ===== Footer ===== */
+  .footer {
+    text-align: center;
+    padding: 40px 0 30px;
+    color: #555577;
+    font-size: 0.85rem;
+    position: relative;
+    z-index: 1;
+  }
+  .footer .boss-key {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 14px;
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 10px;
+    font-size: 0.78rem;
+    color: #666688;
+  }
+</style>
+</head>
+<body>
+
+<!-- Floating background emojis -->
+<div id="bg-emojis"></div>
+
+<div class="container">
+  <div class="header">
+    <span class="icon">🎪</span>
+    <h1>摸鱼乐园</h1>
+    <p class="subtitle">9 个精心打磨的摸鱼小玩具 · 双击即玩 · 纯前端零依赖</p>
+  </div>
+
+  <div class="card-grid">
+
+    <a class="card" href="dodge-button.html">
+      <span class="emoji">🤏</span>
+      <h2>永远按不到的按钮</h2>
+      <p class="desc">页面上有个巨大的"点我领钱"按钮，鼠标一靠近它就瞬移逃走。偶尔运气好点中了，迎接你的是嘲讽表情包和更难的下轮……</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">魔性指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="pixel-painter.html">
+      <span class="emoji">🎨</span>
+      <h2>像素画板</h2>
+      <p class="desc">16×16 或 32×32 的空白网格，点击填色。支持对称镜像绘画，轻松画出万花筒般的图案，还能一键导出 PNG。</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">创造指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="particle-sandbox.html">
+      <span class="emoji">🌌</span>
+      <h2>宇宙大爆炸 · 粒子沙盒</h2>
+      <p class="desc">点击或滑动喷射出成千上万颗彩色粒子，受重力下落、碰撞反弹，像指尖的烟花。可调节重力和粒子数量。</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">解压指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="virtual-pet.html">
+      <span class="emoji">🐣</span>
+      <h2>电子宠物 · 史莱姆养成</h2>
+      <p class="desc">一只纯 CSS 画的果冻史莱姆，有饱腹度、快乐值、清洁度。喂它、陪它玩，属性全满就能孵出随机小动物！</p>
+      <span class="stars">⭐⭐⭐⭐ <span class="label">养成指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="rain-typewriter.html">
+      <span class="emoji">🌧️</span>
+      <h2>ASMR 雨声打字机</h2>
+      <p class="desc">敲键盘发出五声音阶打字声，屏幕飘落雨丝或雪花。不显示任何文字，纯粹为了听声音放松发呆。</p>
+      <span class="stars">⭐⭐⭐⭐ <span class="label">氛围指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="click-evolution.html">
+      <span class="emoji">🧬</span>
+      <h2>点击进化论</h2>
+      <p class="desc">从一个单细胞开始，点击分裂繁衍，每次随机变异属性。遭遇捕食者、病毒、辐射风暴……活下来就是王者！</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">上瘾指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="wooden-fish.html">
+      <span class="emoji">🧘</span>
+      <h2>赛博敲木鱼</h2>
+      <p class="desc">每敲一下功德+1，配上清脆的"咚"声。快速连击触发功德光轮，功德x99梵音净化。停下3秒，一片羽毛落下：心静如水。</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">精神按摩指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="piano-tiles.html">
+      <span class="emoji">🎹</span>
+      <h2>钢琴块儿·极简黑</h2>
+      <p class="desc">黑块下落，精准点击，越来越快，进入心流。还有丧心病狂的"左右手互搏"双板模式，ASDF+JKL;同时开打。</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">自虐指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+    <a class="card" href="hacker-simulator.html">
+      <span class="emoji">💻</span>
+      <h2>黑客帝国·装逼模拟器</h2>
+      <p class="desc">绿色数字瀑布流铺满全屏，胡乱砸键盘就能"入侵全球系统"。试试输入 sudo 或 rm -rf，有隐藏彩蛋。</p>
+      <span class="stars">⭐⭐⭐⭐⭐ <span class="label">中二指数</span></span>
+      <span class="play-btn">▶ 开玩</span>
+    </a>
+
+  </div>
+
+  <div class="footer">
+    <p>纯前端 · 零依赖 · 无广告 · 双击 HTML 即玩</p>
+    <span class="boss-key">💼 老板键：Alt + Tab</span>
+  </div>
+</div>
+
+<script>
+// Spawn floating background emojis
+const emojis = ['🎪','🎮','✨','🌟','💫','🎯','🎲','🎭','🪄','🔥','💎','🌈','🎵','🍀','🕹️','🎰'];
+const container = document.getElementById('bg-emojis');
+for (let i = 0; i < 20; i++) {
+  const span = document.createElement('span');
+  span.className = 'bg-emoji';
+  span.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+  span.style.left = Math.random() * 95 + '%';
+  span.style.animationDuration = (15 + Math.random() * 30) + 's';
+  span.style.animationDelay = -(Math.random() * 30) + 's';
+  span.style.fontSize = (18 + Math.random() * 30) + 'px';
+  container.appendChild(span);
+}
+</script>
+
+</body>
+</html>

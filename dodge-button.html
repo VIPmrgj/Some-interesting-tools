@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>永远按不到的按钮</title>
+<!-- Favicon: 🤏 emoji as SVG data URI -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤏</text></svg>">
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1a2e;
+  color: #eee;
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  min-height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+/* Subtle background pattern: sparse golden dots */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 20% 30%, rgba(255,215,0,0.04) 1px, transparent 1px),
+              radial-gradient(circle at 70% 60%, rgba(255,215,0,0.04) 1px, transparent 1px),
+              radial-gradient(circle at 40% 80%, rgba(255,215,0,0.04) 1px, transparent 1px),
+              radial-gradient(circle at 85% 15%, rgba(255,215,0,0.04) 1px, transparent 1px);
+  background-size: 200px 200px, 250px 250px, 180px 180px, 220px 220px;
+  pointer-events: none;
+}
+
+/* ===== HOME LINK ===== */
+.home-link {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  font-size: 14px;
+  color: rgba(255,255,255,0.4);
+  text-decoration: none;
+  transition: color 0.3s;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+}
+.home-link:hover { color: #ffd700; background: rgba(255,255,255,0.1); }
+
+/* ===== STATS PANEL ===== */
+.stats-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.04);
+  padding: 12px 16px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  min-width: 140px;
+}
+.stats-panel span { display: flex; align-items: center; gap: 6px; }
+.stats-value { color: #ffd700; font-weight: bold; }
+
+/* ===== THE BUTTON ===== */
+#dodgeBtn {
+  position: absolute;
+  /* centered via JS on load */
+  padding: 24px 48px;
+  font-size: 28px;
+  font-weight: 900;
+  font-family: inherit;
+  color: #1a1a2e;
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 30%, #ffd700 50%, #ffa500 80%, #ffd700 100%);
+  background-size: 300% 300%;
+  border: 3px solid #ffd700;
+  border-radius: 24px;
+  cursor: pointer;
+  box-shadow:
+    0 0 20px rgba(255,215,0,0.5),
+    0 0 60px rgba(255,215,0,0.25),
+    0 0 100px rgba(255,140,0,0.15),
+    inset 0 2px 0 rgba(255,255,255,0.3);
+  animation: pulse 2s ease-in-out infinite, shimmer 3s linear infinite;
+  transition: padding 0.3s, font-size 0.3s, border-radius 0.3s;
+  white-space: nowrap;
+  z-index: 50;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Pulsing glow animation */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.25), 0 0 100px rgba(255,140,0,0.15); }
+  50%      { box-shadow: 0 0 35px rgba(255,215,0,0.7), 0 0 90px rgba(255,215,0,0.4), 0 0 130px rgba(255,140,0,0.25); }
+}
+
+/* Gold gradient shimmer */
+@keyframes shimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Scale bounce on teleport */
+#dodgeBtn.bounce {
+  animation: bounceAnim 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+@keyframes bounceAnim {
+  0%   { transform: scale(0.9); }
+  50%  { transform: scale(1.1); }
+  100% { transform: scale(1.0); }
+}
+
+/* ===== GHOST / AFTERIMAGE ===== */
+.ghost {
+  position: absolute;
+  padding: 24px 48px;
+  font-size: 28px;
+  font-weight: 900;
+  color: #1a1a2e;
+  background: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700, #ffa500, #ffd700);
+  background-size: 300% 300%;
+  border: 3px solid #ffd700;
+  border-radius: 24px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 49;
+  animation: ghostFade 0.5s ease-out forwards;
+}
+@keyframes ghostFade {
+  0%   { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(0.85); }
+}
+
+/* ===== CONFETTI PARTICLE (canvas-free) ===== */
+.confetti-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 200;
+  font-size: 20px;
+  animation: confettiFly 0.8s ease-out forwards;
+}
+@keyframes confettiFly {
+  0%   { opacity: 1; transform: translate(0,0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3) rotate(var(--rot)); }
+}
+
+/* ===== OVERLAY ===== */
+#overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 300;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  animation: overlayIn 0.3s ease-out;
+  cursor: pointer;
+}
+#overlay.active { display: flex; }
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+#overlay .kaomoji {
+  font-size: clamp(40px, 10vw, 80px);
+  color: #ffd700;
+  text-shadow: 0 0 30px rgba(255,215,0,0.6);
+  animation: kaomojiBounce 0.6s cubic-bezier(0.34,1.56,0.64,1);
+  text-align: center;
+  line-height: 1.4;
+}
+@keyframes kaomojiBounce {
+  0%   { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+#overlay .message {
+  font-size: clamp(18px, 4vw, 28px);
+  color: #ccc;
+  text-align: center;
+  max-width: 80vw;
+  animation: msgSlideUp 0.5s 0.2s ease-out both;
+}
+@keyframes msgSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+#overlay .dismiss-hint {
+  font-size: 14px;
+  color: rgba(255,255,255,0.3);
+  animation: msgSlideUp 0.5s 0.5s ease-out both;
+}
+
+/* ===== MOBILE TWEAKS ===== */
+@media (max-width: 600px) {
+  #dodgeBtn {
+    padding: 16px 28px;
+    font-size: 20px;
+    border-radius: 18px;
+  }
+  .ghost {
+    padding: 16px 28px;
+    font-size: 20px;
+    border-radius: 18px;
+  }
+  .stats-panel {
+    top: auto;
+    bottom: 12px;
+    right: 12px;
+    flex-direction: row;
+    gap: 12px;
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: 20px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Home link -->
+<a class="home-link" href="index.html" title="返回首页">🏠 首页</a>
+
+<!-- Stats panel -->
+<div class="stats-panel">
+  <span>🏃 本轮逃脱: <b class="stats-value" id="escapeCount">0</b></span>
+  <span>🎯 累计抓到: <b class="stats-value" id="catchCount">0</b></span>
+  <span>📏 按钮大小: <b class="stats-value" id="sizeLevel">Lv.0</b></span>
+</div>
+
+<!-- The dodging button -->
+<button id="dodgeBtn">💰 点我领钱</button>
+
+<!-- Catch overlay -->
+<div id="overlay">
+  <div class="kaomoji" id="kaomoji"></div>
+  <div class="message" id="msg"></div>
+  <div class="dismiss-hint">点击任意处 或 按 Esc 继续</div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  /* ===== DOM REFS ===== */
+  const btn       = document.getElementById("dodgeBtn");
+  const overlay   = document.getElementById("overlay");
+  const kaomojiEl = document.getElementById("kaomoji");
+  const msgEl     = document.getElementById("msg");
+  const escapeEl  = document.getElementById("escapeCount");
+  const catchEl   = document.getElementById("catchCount");
+  const sizeEl    = document.getElementById("sizeLevel");
+
+  /* ===== STATE ===== */
+  let escapeCount     = 0;   // dodges this round (resets on catch)
+  let totalCatches    = 0;   // lifetime catches
+  let sizeLevel       = 0;   // 0 = default size, increments each catch
+  let isDodging       = false; // guard against overlapping dodge triggers
+  let dodgeTimeout    = null;
+  let catchLocked     = false; // prevent click during dodge animation
+
+  /* ===== AUDIO (Web Audio API - lazy init) ===== */
+  let audioCtx = null;
+
+  function initAudio() {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      audioCtx = null;
+    }
+  }
+
+  /** Play a short whoosh sound (frequency sweep down) */
+  function playWhoosh() {
+    if (!audioCtx) return;
+    try {
+      const osc   = audioCtx.createOscillator();
+      const gain  = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(600 + Math.random() * 400, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.2);
+    } catch (e) { /* mute fail silently */ }
+  }
+
+  /** Play a pop sound */
+  function playPop() {
+    if (!audioCtx) return;
+    try {
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.1);
+    } catch (e) { /* mute fail silently */ }
+  }
+
+  /* ===== SIZE SCALING ===== */
+  // Base: 28px font, 24px 48px padding on desktop
+  // Each size level shrinks by ~10% (bottom at ~40% of original)
+  const BASE_FONT   = 28;
+  const BASE_PAD_V  = 24;
+  const BASE_PAD_H  = 48;
+  const BASE_RADIUS = 24;
+
+  function applyButtonSize() {
+    const factor = Math.max(0.4, 1 - sizeLevel * 0.06);
+    const font   = Math.round(BASE_FONT * factor);
+    const padV   = Math.round(BASE_PAD_V * factor);
+    const padH   = Math.round(BASE_PAD_H * factor);
+    const rad    = Math.round(BASE_RADIUS * factor);
+    btn.style.fontSize     = font + "px";
+    btn.style.padding      = padV + "px " + padH + "px";
+    btn.style.borderRadius = rad + "px";
+    sizeEl.textContent     = "Lv." + sizeLevel;
+  }
+
+  /* ===== GET BUTTON DIMENSIONS (dynamic) ===== */
+  function getBtnRect() {
+    const r = btn.getBoundingClientRect();
+    return { width: r.width, height: r.height, left: r.left, top: r.top };
+  }
+
+  /* ===== RANDOM POSITION (keeps button fully visible) ===== */
+  function randomPosition() {
+    const vw     = window.innerWidth;
+    const vh     = window.innerHeight;
+    const { width, height } = getBtnRect();
+    // Pad by 12px so the button never clips
+    const margin = 12;
+    const maxX   = Math.max(0, vw - width - margin);
+    const maxY   = Math.max(0, vh - height - margin);
+    const x      = margin + Math.random() * maxX;
+    const y      = margin + Math.random() * maxY;
+    return { x, y };
+  }
+
+  /* ===== SPECTRAL AFTERIMAGE ===== */
+  function spawnGhost(x, y) {
+    const ghost = document.createElement("div");
+    ghost.className = "ghost";
+    ghost.textContent = "💰 点我领钱";
+    ghost.style.left = x + "px";
+    ghost.style.top  = y + "px";
+    document.body.appendChild(ghost);
+    // Remove after animation ends
+    ghost.addEventListener("animationend", function() {
+      ghost.remove();
+    });
+    // Safety cleanup
+    setTimeout(function() { if (ghost.parentNode) ghost.remove(); }, 600);
+  }
+
+  /* ===== CONFETTI BURST ===== */
+  const CONFETTI_SYMBOLS = ["🎉","✨","💫","🌟","⭐","💥","🔥","💸","🪙","🎊","🎀","💎","🪄","🎇"];
+
+  function spawnConfetti(x, y) {
+    const count = 18 + Math.floor(Math.random() * 12);
+    for (let i = 0; i < count; i++) {
+      const particle = document.createElement("div");
+      particle.className = "confetti-particle";
+      particle.textContent = CONFETTI_SYMBOLS[Math.floor(Math.random() * CONFETTI_SYMBOLS.length)];
+      particle.style.left = x + "px";
+      particle.style.top  = y + "px";
+      // Random direction and rotation
+      const angle   = Math.random() * Math.PI * 2;
+      const dist    = 40 + Math.random() * 120;
+      const dx      = Math.cos(angle) * dist;
+      const dy      = Math.sin(angle) * dist - 40; // bias upward
+      const rot     = (Math.random() - 0.5) * 720;
+      particle.style.setProperty("--dx",  dx + "px");
+      particle.style.setProperty("--dy",  dy + "px");
+      particle.style.setProperty("--rot", rot + "deg");
+      document.body.appendChild(particle);
+      particle.addEventListener("animationend", function() { particle.remove(); });
+      setTimeout(function() { if (particle.parentNode) particle.remove(); }, 900);
+    }
+  }
+
+  /* ===== DODGE LOGIC ===== */
+  function getDodgeChance() {
+    // Base: 90% dodge chance
+    // After 20 escapes this round, pity system reduces dodge by 4% per extra dodge
+    // Minimum 20% dodge chance (so it's always somewhat tricky)
+    if (escapeCount <= 20) return 0.9;
+    const reduction = (escapeCount - 20) * 0.04;
+    return Math.max(0.2, 0.9 - reduction);
+  }
+
+  function dodge() {
+    if (isDodging) return;
+    if (catchLocked) return; // don't dodge during catch cooldown
+    isDodging = true;
+    catchLocked = true; // block clicks briefly
+
+    // Lazy check: small chance of NOT dodging
+    const roll = Math.random();
+    if (roll > getDodgeChance()) {
+      // Button is "lazy" — stays put
+      isDodging = false;
+      catchLocked = false;
+      return;
+    }
+
+    // Record current position for ghost
+    const rect = getBtnRect();
+
+    // Delay: 60-100ms
+    const delay = 60 + Math.random() * 40;
+
+    dodgeTimeout = setTimeout(function() {
+      // Save position before moving
+      const oldLeft = rect.left;
+      const oldTop  = rect.top;
+
+      // Spawn ghost at current position
+      spawnGhost(oldLeft, oldTop);
+
+      // Calculate random new position
+      const { x, y } = randomPosition();
+
+      // Move button
+      btn.style.left = x + "px";
+      btn.style.top  = y + "px";
+
+      // Play whoosh
+      playWhoosh();
+
+      // Bounce animation
+      btn.classList.remove("bounce");
+      void btn.offsetWidth; // force reflow
+      btn.classList.add("bounce");
+
+      // Increment escape counter
+      escapeCount++;
+      escapeEl.textContent = escapeCount;
+
+      // Cleanup
+      btn.addEventListener("animationend", function handler() {
+        btn.removeEventListener("animationend", handler);
+        isDodging = false;
+        // Small unlock delay so mouse can leave
+        setTimeout(function() { catchLocked = false; }, 80);
+      }, { once: true });
+
+      // Safety: unlock after max time
+      setTimeout(function() {
+        isDodging = false;
+        catchLocked = false;
+        btn.classList.remove("bounce");
+      }, 500);
+
+    }, delay);
+  }
+
+  /* ===== CATCH: SHOW OVERLAY ===== */
+  const KAOMOJI_LIST = [
+    "¯\\_(ツ)_/¯",
+    "(╯°□°）╯︵ ┻━┻",
+    "(◕‿◕✿)",
+    "(•_•)",
+    "(⌐■_■)",
+    "ʕ•ᴥ•ʔ",
+    "( ͡° ͜ʖ ͡°)",
+    "(╥_╥)",
+    "(｡•́︿•̀｡)",
+    "◔_◔",
+    "(¬_¬)",
+    "(≧▽≦)",
+    "ヽ(°〇°)ﾉ",
+    "(ᗒᗣᗕ)՞",
+    "(,,>﹏<,,)",
+    "ಠ_ಠ",
+    "凸(¬‿¬)",
+    "┐(￣ヘ￣)┌",
+    "(ᴗ ͜ʖ ᴗ)",
+    "(◔‿◔)"
+  ];
+
+  const MESSAGE_LIST = [
+    "就这手速？",
+    "再试试？",
+    "手残确认.jpg",
+    "离大谱，这都点不到？",
+    "你的鼠标是不是坏了？",
+    "老年人手速？",
+    "我觉得你该换个手指",
+    "点到了！……然后呢？",
+    "恭喜你浪费了宝贵的几秒钟",
+    "这个按钮是收费的，请先付款",
+    "系统检测到：手残晚期",
+    "要不……换个触控板试试？",
+    "你的反射弧有点长啊",
+    "精准命中！但没奖励",
+    "再接再厉（虽然也没什么用）",
+    "已记录，永不删除 😈"
+  ];
+
+  function handleCatch(e) {
+    if (catchLocked) return;
+    catchLocked = true;
+
+    // Play pop sound
+    playPop();
+
+    // Confetti at click/tap point
+    const cx = e.clientX || e.touches?.[0]?.clientX || window.innerWidth / 2;
+    const cy = e.clientY || e.touches?.[0]?.clientY || window.innerHeight / 2;
+    spawnConfetti(cx, cy);
+
+    // Increment catch stats
+    totalCatches++;
+    catchEl.textContent = totalCatches;
+
+    // Pick random kaomoji & message
+    const km = KAOMOJI_LIST[Math.floor(Math.random() * KAOMOJI_LIST.length)];
+
+    let msg;
+    // Escalating messages based on escapeCount this round
+    if (escapeCount === 0) {
+      msg = "一次就点到了？开挂了吧！";
+    } else if (escapeCount <= 2) {
+      msg = "手速还行……但这才刚开始呢";
+    } else {
+      // Pick a random message, but also inject the escape count message sometimes
+      const base = MESSAGE_LIST[Math.floor(Math.random() * MESSAGE_LIST.length)];
+      const withCount = "第" + escapeCount + "次了……";
+      // 50% chance of count message, 50% random snark
+      msg = Math.random() < 0.5 ? withCount : base;
+    }
+
+    // Show overlay
+    kaomojiEl.textContent = km;
+    msgEl.textContent = msg;
+    overlay.classList.add("active");
+
+    // Shrink button for next round
+    sizeLevel++;
+    applyButtonSize();
+
+    // Reset escape counter for new round
+    escapeCount = 0;
+    escapeEl.textContent = "0";
+
+    // Reset catch lock after overlay dismiss
+    // (lock is released in dismissOverlay)
+  }
+
+  /* ===== DISMISS OVERLAY ===== */
+  function dismissOverlay() {
+    overlay.classList.remove("active");
+    // Small delay before re-enabling catches
+    setTimeout(function() {
+      catchLocked = false;
+    }, 100);
+  }
+
+  overlay.addEventListener("click", function(e) {
+    if (e.target === overlay || e.target.classList.contains("dismiss-hint")) {
+      dismissOverlay();
+    }
+  });
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" && overlay.classList.contains("active")) {
+      dismissOverlay();
+    }
+  });
+
+  /* ===== EVENT HANDLERS ===== */
+
+  // Mouse: dodge on hover
+  btn.addEventListener("mouseover", function(e) {
+    initAudio();
+    dodge();
+  });
+
+  // Touch: dodge on touch start
+  btn.addEventListener("touchstart", function(e) {
+    initAudio();
+    dodge();
+    // Don't prevent default — we want click to still fire on touch devices
+  });
+
+  // Click: catch
+  btn.addEventListener("click", function(e) {
+    initAudio();
+    if (overlay.classList.contains("active")) return;
+    handleCatch(e);
+  });
+
+  /* ===== INITIAL POSITION ===== */
+  function centerButton() {
+    const { width, height } = getBtnRect();
+    const x = (window.innerWidth  - width)  / 2;
+    const y = (window.innerHeight - height) / 2;
+    btn.style.left = x + "px";
+    btn.style.top  = y + "px";
+  }
+
+  // Center on load
+  window.addEventListener("load", function() {
+    centerButton();
+    applyButtonSize();
+    catchLocked = false;
+  });
+
+  // Re-center on resize
+  let resizeDebounce = null;
+  window.addEventListener("resize", function() {
+    clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(function() {
+      // Only re-center if button hasn't been dodged yet this round
+      if (escapeCount === 0) {
+        centerButton();
+      }
+    }, 200);
+  });
+
+  /* ===== INITIAL SIZE ===== */
+  applyButtonSize();
+
+  console.log("🤏 永远按不到的按钮 — 已就绪！试试看你能点到吗？");
+})();
+</script>
+</body>
+</html>

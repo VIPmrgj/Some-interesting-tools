@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>雨声打字机 — Rain & Typewriter ASMR</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.8em%22 font-size=%2280%22>🌧️</text></svg>">
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ============================================================
+   DEEP NIGHT BACKGROUND — layered gradient
+   ============================================================ */
+body {
+  background: linear-gradient(
+    180deg,
+    #0a0a1a 0%,
+    #0d1225 25%,
+    #0d1b2a 50%,
+    #111e30 75%,
+    #1b2838 100%
+  );
+}
+
+/* Subtle ambient glow near horizon */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 85%, rgba(30,60,100,0.25) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 90%, rgba(25,50,85,0.18) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   RAIN / SNOW CONTAINER
+   ============================================================ */
+#particle-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Rain drop: thin vertical line */
+.particle.rain {
+  width: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(180,200,230,0.55) 30%,
+    rgba(200,220,255,0.75) 60%,
+    rgba(160,190,220,0.2) 100%
+  );
+}
+
+/* Snowflake: small dot with glow */
+.particle.snow {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(220,235,255,0.9), rgba(180,200,230,0.3));
+  box-shadow: 0 0 6px 2px rgba(180,210,240,0.35);
+}
+
+/* ============================================================
+   LIGHTNING FLASH OVERLAY
+   ============================================================ */
+#lightning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.08s ease-out;
+}
+
+#lightning-overlay.flash {
+  opacity: var(--flash-opacity, 0.07);
+  transition: opacity 0.04s ease-in;
+}
+
+/* ============================================================
+   RIPPLE CONTAINER (keystroke visual feedback)
+   ============================================================ */
+#ripple-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.ripple {
+  position: absolute;
+  border: 1.5px solid rgba(180,210,240,0.6);
+  border-radius: 50%;
+  width: 20px; height: 20px;
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple-expand 0.9s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+.ripple.space-ripple {
+  width: 36px; height: 36px;
+  border-width: 2px;
+  border-color: rgba(200,225,250,0.7);
+  animation-duration: 1.1s;
+}
+
+.ripple.enter-ripple {
+  width: 60px; height: 60px;
+  border-width: 3px;
+  border-color: rgba(220,235,255,0.8);
+  animation-duration: 1.3s;
+}
+
+@keyframes ripple-expand {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(8); opacity: 0; }
+}
+
+/* ============================================================
+   ENTER-KEY FULL SCREEN FLASH
+   ============================================================ */
+#enter-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  background: rgba(200,220,240,0.06);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+#enter-flash.active {
+  opacity: 1;
+}
+
+/* ============================================================
+   HINT OVERLAY (first-time prompt)
+   ============================================================ */
+#hint-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#hint-overlay .hint-text {
+  font-size: 1.5rem;
+  color: rgba(180,200,230,0.7);
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 30px rgba(140,180,220,0.4);
+  animation: hint-breathe 3s ease-in-out infinite;
+  transition: opacity 0.8s ease-out;
+}
+
+@keyframes hint-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
+
+#hint-overlay.fading .hint-text {
+  opacity: 0;
+}
+
+/* ============================================================
+   HOME LINK — top-left corner
+   ============================================================ */
+#home-link {
+  position: fixed;
+  top: 18px;
+  left: 20px;
+  z-index: 20;
+  font-size: 0.9rem;
+  color: rgba(160,190,220,0.5);
+  text-decoration: none;
+  letter-spacing: 0.05em;
+  transition: color 0.3s;
+}
+
+#home-link:hover {
+  color: rgba(200,220,245,0.85);
+}
+
+/* ============================================================
+   STATS — bottom-left corner
+   ============================================================ */
+#stats {
+  position: fixed;
+  bottom: 22px;
+  left: 20px;
+  z-index: 20;
+  font-size: 0.85rem;
+  color: rgba(140,175,210,0.55);
+  letter-spacing: 0.04em;
+  transition: opacity 0.5s;
+}
+
+/* ============================================================
+   CONTROLS — bottom-right corner
+   ============================================================ */
+#controls {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.control-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  background: rgba(20,35,55,0.65);
+  border: 1px solid rgba(100,140,180,0.25);
+  border-radius: 20px;
+  color: rgba(170,200,230,0.7);
+  font-size: 0.8rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: all 0.25s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.control-btn:hover {
+  background: rgba(30,50,75,0.75);
+  color: rgba(200,220,245,0.9);
+  border-color: rgba(130,175,215,0.45);
+}
+
+.control-btn.active {
+  background: rgba(40,70,100,0.7);
+  border-color: rgba(140,190,230,0.5);
+  color: rgba(210,230,250,0.9);
+}
+
+/* Volume row — slider + mute side by side */
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(100,150,200,0.3);
+  outline: none;
+  cursor: pointer;
+}
+
+#volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(180,210,240,0.8);
+  cursor: pointer;
+  border: none;
+}
+
+#volume-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: rgba(180,210,240,0.8);
+  cursor: pointer;
+  border: none;
+}
+
+/* ============================================================
+   HIDDEN INPUT for mobile keyboard support
+   Placed at screen center so it's easily tappable on mobile
+   ============================================================ */
+#hidden-input {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: 100px;
+  height: 36px;
+  opacity: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px;
+  padding: 0;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 600px) {
+  #home-link { font-size: 0.8rem; top: 12px; left: 14px; }
+  #stats { font-size: 0.75rem; bottom: 14px; left: 12px; }
+  #controls { bottom: 10px; right: 10px; gap: 5px; }
+  .control-btn { font-size: 0.7rem; padding: 5px 10px; }
+  #hint-overlay .hint-text { font-size: 1.15rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Particle layer (rain drops / snowflakes) -->
+<div id="particle-layer"></div>
+
+<!-- Lightning flash overlay -->
+<div id="lightning-overlay"></div>
+
+<!-- Ripple layer (keystroke visual feedback) -->
+<div id="ripple-layer"></div>
+
+<!-- Enter key full-screen flash -->
+<div id="enter-flash"></div>
+
+<!-- First-time hint overlay -->
+<div id="hint-overlay">
+  <span class="hint-text">敲下任意键，开始下雨…</span>
+</div>
+
+<!-- Home link -->
+<a id="home-link" href="index.html" title="返回首页">🏠 首页</a>
+
+<!-- Stats -->
+<div id="stats">🌧 今晚落下了 0 滴雨</div>
+
+<!-- Controls -->
+<div id="controls">
+  <div class="control-row">
+    <button class="control-btn active" id="btn-mode" title="切换雨/雪模式">🌧️ 雨</button>
+  </div>
+  <div class="control-row">
+    <input type="range" id="volume-slider" min="0" max="100" value="50" title="环境雨声音量">
+    <button class="control-btn active" id="btn-mute" title="静音/取消静音">🔊</button>
+  </div>
+  <div class="control-row">
+    <button class="control-btn active" id="btn-thunder" title="雷声开关">⛈️ 雷</button>
+  </div>
+</div>
+
+<!-- Hidden input for mobile keyboard -->
+<input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+<script>
+/* ============================================================
+   RAIN & TYPEWRITER ASMR — Complete Web Audio + Canvas-free
+   ============================================================
+   All sounds synthesized via Web Audio API.
+   Single-file, zero dependencies, works over file:// protocol.
+   ============================================================ */
+
+(function() {
+  'use strict';
+
+  // ─── DOM REFERENCES ────────────────────────────────────────
+  const particleLayer  = document.getElementById('particle-layer');
+  const lightningOverlay = document.getElementById('lightning-overlay');
+  const rippleLayer    = document.getElementById('ripple-layer');
+  const enterFlash     = document.getElementById('enter-flash');
+  const hintOverlay    = document.getElementById('hint-overlay');
+  const statsEl        = document.getElementById('stats');
+  const btnMode        = document.getElementById('btn-mode');
+  const btnMute        = document.getElementById('btn-mute');
+  const btnThunder     = document.getElementById('btn-thunder');
+  const volumeSlider   = document.getElementById('volume-slider');
+  const hiddenInput    = document.getElementById('hidden-input');
+
+  // ─── STATE ─────────────────────────────────────────────────
+  let audioCtx          = null;
+  let audioInitialized  = false;
+  let isMuted           = false;
+  let isSnowMode        = false;
+  let thunderEnabled    = true;
+  let ambientVolume     = 0.5;    // 0..1
+  let totalKeystrokes   = 0;      // loaded from localStorage, accumulates
+  let rainGainNode      = null;   // master gain for ambient rain
+  let rainSourceNode    = null;   // looping noise source
+  let rainLfoId         = null;   // interval ID for rain volume LFO
+
+  // ─── PENTATONIC SCALE (宫商角徵羽) ──────────────────────────
+  // C4 D4 E4 G4 A4 → 5 notes, repeating across octaves
+  const PENTA_BASE = [261.63, 293.66, 329.63, 392.00, 440.00]; // C4 D4 E4 G4 A4
+
+  /**
+   * Map a character to a pentatonic frequency.
+   * Cycles through the 5 notes; the octave increases every 5 characters
+   * going through the alphabet, then wraps.
+   * @param {string} char - single character
+   * @returns {number} frequency in Hz
+   */
+  function charToFrequency(char) {
+    const code = char.toLowerCase().charCodeAt(0);
+    // Only letters get harmonic mapping; others use a fallback
+    if (code >= 97 && code <= 122) {
+      const idx = code - 97;             // 0-25 for a-z
+      const noteIdx = idx % 5;           // which of the 5 pentatonic notes
+      const octaveShift = Math.floor(idx / 5); // octave offset from C4
+      return PENTA_BASE[noteIdx] * Math.pow(2, octaveShift);
+    }
+    // Digits and punctuation: use a mid-range harmonic frequency
+    // based on char code, clamped to pentatonic
+    const pseudo = (code % 5);
+    const oct = 4 + Math.floor((code % 30) / 5);
+    return PENTA_BASE[pseudo] * Math.pow(2, oct - 4);
+  }
+
+  // ─── AUDIO ENGINE ──────────────────────────────────────────
+
+  /** Ensure AudioContext exists and is running */
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    if (!audioInitialized) {
+      audioInitialized = true;
+      initAmbientRain();
+      scheduleLightning();
+      scheduleThunder();
+      // Fade out hint overlay
+      hintOverlay.classList.add('fading');
+      setTimeout(function() {
+        hintOverlay.style.display = 'none';
+      }, 900);
+    }
+  }
+
+  // ── Shared white-noise buffer (1 second, reused) ──────────
+
+  /** @type {AudioBuffer|null} */
+  let noiseBuffer = null;
+
+  function getNoiseBuffer() {
+    if (noiseBuffer) return noiseBuffer;
+    if (!audioCtx) return null;
+    const sampleRate = audioCtx.sampleRate;
+    const length = sampleRate * 1; // 1 second
+    noiseBuffer = audioCtx.createBuffer(1, length, sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < length; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuffer;
+  }
+
+  // ── Typewriter click (standard keys) ──────────────────────
+
+  /**
+   * Play a typewriter click for letter/number/punctuation keys.
+   * Triangle + sine mixed, fast exponential decay (80-120ms),
+   * slight white noise for mechanical feel.
+   * @param {string} char - the character pressed
+   */
+  function playTypewriterClick(char) {
+    if (!audioCtx || isMuted) return;
+    const freq = charToFrequency(char);
+    const now = audioCtx.currentTime;
+    const duration = 0.08 + Math.random() * 0.04; // 80-120ms
+
+    // Master gain for this click
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.35, now);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    masterGain.connect(audioCtx.destination);
+
+    // Triangle oscillator — warm body
+    const tri = audioCtx.createOscillator();
+    tri.type = 'triangle';
+    tri.frequency.setValueAtTime(freq, now);
+    tri.connect(masterGain);
+    tri.start(now);
+    tri.stop(now + duration);
+
+    // Sine oscillator — adds clarity
+    const sine = audioCtx.createOscillator();
+    sine.type = 'sine';
+    sine.frequency.setValueAtTime(freq * 1.01, now); // slight detune for thickness
+    sine.connect(masterGain);
+    sine.start(now);
+    sine.stop(now + duration);
+
+    // White noise burst — mechanical click texture
+    const buf = getNoiseBuffer();
+    if (buf) {
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.08, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.5);
+      noiseGain.connect(masterGain);
+
+      const noiseSrc = audioCtx.createBufferSource();
+      noiseSrc.buffer = buf;
+      // Pick a random start offset in the noise buffer
+      noiseSrc.start(now, Math.random() * 0.9);
+      noiseSrc.stop(now + duration * 0.5);
+      noiseSrc.connect(noiseGain);
+    }
+  }
+
+  // ── Backspace: mechanical clack ───────────────────────────
+
+  function playBackspace() {
+    if (!audioCtx || isMuted) return;
+    const now = audioCtx.currentTime;
+    const duration = 0.2; // 200ms
+    const freq = 180;     // lower frequency
+
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.5, now);            // harder attack
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    masterGain.connect(audioCtx.destination);
+
+    // Triangle — body
+    const tri = audioCtx.createOscillator();
+    tri.type = 'triangle';
+    tri.frequency.setValueAtTime(freq, now);
+    tri.connect(masterGain);
+    tri.start(now);
+    tri.stop(now + duration);
+
+    // Lower sine for weight
+    const sine = audioCtx.createOscillator();
+    sine.type = 'sine';
+    sine.frequency.setValueAtTime(freq * 0.5, now);
+    sine.connect(masterGain);
+    sine.start(now);
+    sine.stop(now + duration);
+
+    // Noise burst
+    const buf = getNoiseBuffer();
+    if (buf) {
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.15, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.6);
+      noiseGain.connect(audioCtx.destination);
+
+      const noiseSrc = audioCtx.createBufferSource();
+      noiseSrc.buffer = buf;
+      noiseSrc.start(now, Math.random() * 0.85);
+      noiseSrc.stop(now + duration * 0.6);
+      noiseSrc.connect(noiseGain);
+    }
+  }
+
+  // ── Enter: ding + carriage return whoosh ──────────────────
+
+  function playEnter() {
+    if (!audioCtx || isMuted) return;
+    const now = audioCtx.currentTime;
+
+    // --- Ding! bell (high sine, ~1200Hz, quick decay) ---
+    const dingGain = audioCtx.createGain();
+    dingGain.gain.setValueAtTime(0.4, now);
+    dingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    dingGain.connect(audioCtx.destination);
+
+    const ding = audioCtx.createOscillator();
+    ding.type = 'sine';
+    ding.frequency.setValueAtTime(1200, now);
+    ding.frequency.exponentialRampToValueAtTime(1180, now + 0.15); // slight detune
+    ding.connect(dingGain);
+    ding.start(now);
+    ding.stop(now + 0.18);
+
+    // Add a harmonic overtone for bell character
+    const overtoneGain = audioCtx.createGain();
+    overtoneGain.gain.setValueAtTime(0.15, now);
+    overtoneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    overtoneGain.connect(audioCtx.destination);
+
+    const overtone = audioCtx.createOscillator();
+    overtone.type = 'sine';
+    overtone.frequency.setValueAtTime(1800, now);
+    overtone.connect(overtoneGain);
+    overtone.start(now);
+    overtone.stop(now + 0.25);
+
+    // --- Carriage return whoosh (filtered noise sweep, 300ms) ---
+    const whooshDuration = 0.3;
+    const whooshGain = audioCtx.createGain();
+    whooshGain.gain.setValueAtTime(0.01, now);
+    whooshGain.gain.linearRampToValueAtTime(0.2, now + 0.04);
+    whooshGain.gain.linearRampToValueAtTime(0.15, now + 0.1);
+    whooshGain.gain.exponentialRampToValueAtTime(0.001, now + whooshDuration);
+    whooshGain.connect(audioCtx.destination);
+
+    const bpFilter = audioCtx.createBiquadFilter();
+    bpFilter.type = 'bandpass';
+    bpFilter.frequency.setValueAtTime(3000, now);
+    bpFilter.frequency.exponentialRampToValueAtTime(200, now + whooshDuration);
+    bpFilter.Q.setValueAtTime(0.7, now);
+
+    const buf = getNoiseBuffer();
+    if (buf) {
+      const noiseSrc = audioCtx.createBufferSource();
+      noiseSrc.buffer = buf;
+      noiseSrc.loop = true;
+      noiseSrc.start(now, Math.random() * 0.7);
+      noiseSrc.stop(now + whooshDuration);
+      noiseSrc.connect(bpFilter);
+      bpFilter.connect(whooshGain);
+    }
+  }
+
+  // ── Space: soft low thud ──────────────────────────────────
+
+  function playSpace() {
+    if (!audioCtx || isMuted) return;
+    const now = audioCtx.currentTime;
+    const duration = 0.06;
+    const freq = 80; // low ~80Hz
+
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.3, now);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    masterGain.connect(audioCtx.destination);
+
+    const sine = audioCtx.createOscillator();
+    sine.type = 'sine';
+    sine.frequency.setValueAtTime(freq, now);
+    sine.connect(masterGain);
+    sine.start(now);
+    sine.stop(now + duration);
+
+    // Gentle sub-harmonic
+    const sub = audioCtx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(freq * 0.5, now);
+    const subGain = audioCtx.createGain();
+    subGain.gain.setValueAtTime(0.2, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.2);
+    subGain.connect(audioCtx.destination);
+    sub.connect(subGain);
+    sub.start(now);
+    sub.stop(now + duration * 1.2);
+  }
+
+  // ── Thunder rumble ────────────────────────────────────────
+
+  function playThunder() {
+    if (!audioCtx || isMuted || !thunderEnabled) return;
+    const now = audioCtx.currentTime;
+    const duration = 1.2 + Math.random() * 0.8; // 1.2-2.0s
+
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.01, now);
+    masterGain.gain.linearRampToValueAtTime(0.25, now + 0.3);
+    masterGain.gain.linearRampToValueAtTime(0.2, now + 0.6);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    masterGain.connect(audioCtx.destination);
+
+    // Low-pass filtered noise for rumble
+    const lpFilter = audioCtx.createBiquadFilter();
+    lpFilter.type = 'lowpass';
+    lpFilter.frequency.setValueAtTime(200, now);
+    lpFilter.frequency.linearRampToValueAtTime(80, now + duration * 0.6);
+    lpFilter.Q.setValueAtTime(0.5, now);
+
+    const buf = getNoiseBuffer();
+    if (buf) {
+      const noiseSrc = audioCtx.createBufferSource();
+      noiseSrc.buffer = buf;
+      noiseSrc.loop = true;
+      noiseSrc.start(now, Math.random() * 0.8);
+      noiseSrc.stop(now + duration);
+      noiseSrc.connect(lpFilter);
+      lpFilter.connect(masterGain);
+    }
+
+    // Subtle flash alongside thunder
+    triggerLightning(0.06);
+  }
+
+  // ── Ambient rain sound (continuous filtered noise) ────────
+
+  function initAmbientRain() {
+    if (!audioCtx) return;
+    const sampleRate = audioCtx.sampleRate;
+    const bufLength = sampleRate * 3; // 3-second looping buffer
+
+    // Generate fresh noise for ambient (different feel from the click buffer)
+    const ambBuf = audioCtx.createBuffer(1, bufLength, sampleRate);
+    const data = ambBuf.getChannelData(0);
+    for (let i = 0; i < bufLength; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    // Bandpass filter: center 2-4kHz for rain sizzle
+    const bpFilter = audioCtx.createBiquadFilter();
+    bpFilter.type = 'bandpass';
+    bpFilter.frequency.setValueAtTime(3000, audioCtx.currentTime);
+    bpFilter.Q.setValueAtTime(1.2, audioCtx.currentTime);
+
+    // Gain node for user volume control
+    rainGainNode = audioCtx.createGain();
+    rainGainNode.gain.setValueAtTime(ambientVolume * 0.25, audioCtx.currentTime);
+
+    // Connect: source → bandpass → gain → destination
+    bpFilter.connect(rainGainNode);
+    rainGainNode.connect(audioCtx.destination);
+
+    // Create and start the looping source
+    rainSourceNode = audioCtx.createBufferSource();
+    rainSourceNode.buffer = ambBuf;
+    rainSourceNode.loop = true;
+    rainSourceNode.connect(bpFilter);
+    rainSourceNode.start(0);
+
+    // Start LFO for rain intensity variation
+    startRainLFO();
+  }
+
+  /** Restart ambient rain (called after toggling mute off) */
+  function restartAmbientRain() {
+    stopAmbientRain();
+    initAmbientRain();
+  }
+
+  function stopAmbientRain() {
+    if (rainLfoId) { clearInterval(rainLfoId); rainLfoId = null; }
+    try { if (rainSourceNode) rainSourceNode.stop(); } catch(e) { /* already stopped */ }
+    rainSourceNode = null;
+    rainGainNode = null;
+  }
+
+  /** Simple JS-driven LFO for rain volume (0.1-0.5 Hz) */
+  function startRainLFO() {
+    if (rainLfoId) clearInterval(rainLfoId);
+    const lfoFreq = 0.15 + Math.random() * 0.35; // 0.15-0.5 Hz
+    const depth = 0.35; // ±35% variation
+    const startTime = performance.now() / 1000;
+
+    rainLfoId = setInterval(function() {
+      if (!rainGainNode || !audioCtx) return;
+      const t = performance.now() / 1000 - startTime;
+      const mod = 1 + depth * Math.sin(2 * Math.PI * lfoFreq * t);
+      const vol = (isMuted ? 0 : ambientVolume * 0.25) * mod;
+      rainGainNode.gain.setTargetAtTime(
+        Math.max(0, vol),
+        audioCtx.currentTime,
+        0.05
+      );
+    }, 50); // 20 updates/sec — smooth enough for slow LFO
+  }
+
+  // ── Lightning effect ──────────────────────────────────────
+
+  let lightningTimeout = null;
+
+  function triggerLightning(opacity) {
+    opacity = opacity || 0.05 + Math.random() * 0.05; // 5-10%
+    lightningOverlay.style.setProperty('--flash-opacity', opacity);
+    lightningOverlay.classList.add('flash');
+    setTimeout(function() {
+      lightningOverlay.classList.remove('flash');
+    }, 180 + Math.random() * 80);
+  }
+
+  function scheduleLightning() {
+    const delay = 30000 + Math.random() * 60000; // 30-90s
+    lightningTimeout = setTimeout(function() {
+      triggerLightning();
+      scheduleLightning(); // recur
+    }, delay);
+  }
+
+  // ── Thunder scheduling ────────────────────────────────────
+
+  let thunderTimeout = null;
+
+  function scheduleThunder() {
+    if (!thunderEnabled) return;
+    const delay = 20000 + Math.random() * 20000; // 20-40s
+    thunderTimeout = setTimeout(function() {
+      playThunder();
+      scheduleThunder(); // recur
+    }, delay);
+  }
+
+  function cancelThunder() {
+    if (thunderTimeout) { clearTimeout(thunderTimeout); thunderTimeout = null; }
+  }
+
+  // ── PARTICLE SYSTEM (rain drops / snowflakes) ─────────────
+
+  const PARTICLE_COUNT = 100;
+  /** @type {Array<{el: HTMLElement, x: number, y: number, speed: number, size: number, opacity: number, phase: number, amplitude: number, oscSpeed: number}>} */
+  let particles = [];
+  let animFrameId = null;
+
+  function createParticles() {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const el = document.createElement('div');
+      el.className = 'particle ' + (isSnowMode ? 'snow' : 'rain');
+      frag.appendChild(el);
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      particles.push({
+        el: el,
+        x: Math.random() * w,
+        y: Math.random() * h, // start at random vertical positions
+        speed: isSnowMode
+          ? 0.3 + Math.random() * 0.9   // slow fall
+          : 3 + Math.random() * 7,       // fast rain
+        size: isSnowMode
+          ? 2 + Math.random() * 5
+          : 4 + Math.random() * 14,      // rain drop length
+        opacity: isSnowMode
+          ? 0.35 + Math.random() * 0.55
+          : 0.35 + Math.random() * 0.45,
+        phase: Math.random() * Math.PI * 2,
+        amplitude: isSnowMode ? 20 + Math.random() * 50 : 0,
+        oscSpeed: 0.001 + Math.random() * 0.003
+      });
+    }
+    particleLayer.appendChild(frag);
+  }
+
+  /** Rebuild all particles (called when switching rain/snow mode) */
+  function rebuildParticles() {
+    // Remove old elements
+    while (particleLayer.firstChild) {
+      particleLayer.removeChild(particleLayer.firstChild);
+    }
+    particles = [];
+
+    // Create new ones with mode-appropriate settings
+    const frag = document.createDocumentFragment();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const el = document.createElement('div');
+      el.className = 'particle ' + (isSnowMode ? 'snow' : 'rain');
+      frag.appendChild(el);
+
+      particles.push({
+        el: el,
+        x: Math.random() * w,
+        y: Math.random() * h,
+        speed: isSnowMode
+          ? 0.3 + Math.random() * 0.9
+          : 3 + Math.random() * 7,
+        size: isSnowMode
+          ? 2 + Math.random() * 5
+          : 4 + Math.random() * 14,
+        opacity: isSnowMode
+          ? 0.35 + Math.random() * 0.55
+          : 0.35 + Math.random() * 0.45,
+        phase: Math.random() * Math.PI * 2,
+        amplitude: isSnowMode ? 20 + Math.random() * 50 : 0,
+        oscSpeed: 0.001 + Math.random() * 0.003
+      });
+    }
+    particleLayer.appendChild(frag);
+  }
+
+  function animateParticles() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Performance: track time for sine-based snow oscillation
+    const t = performance.now();
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
+      // Update y position
+      p.y += p.speed;
+
+      // Handle horizontal oscillation for snow
+      let displayX = p.x;
+      if (isSnowMode && p.amplitude > 0) {
+        displayX = p.x + Math.sin(t * p.oscSpeed + p.phase) * p.amplitude;
+      }
+
+      // Reset if off-screen
+      if (p.y > h + 20) {
+        p.y = -20 - Math.random() * 40;
+        p.x = Math.random() * w;
+        p.speed = isSnowMode
+          ? 0.3 + Math.random() * 0.9
+          : 3 + Math.random() * 7;
+        p.phase = Math.random() * Math.PI * 2;
+      }
+      // Wrap horizontally for snow that drifts off-screen
+      if (displayX < -20) displayX = w + 20;
+      if (displayX > w + 20) displayX = -20;
+
+      // Apply styles
+      const el = p.el;
+      if (isSnowMode) {
+        el.style.width = p.size + 'px';
+        el.style.height = p.size + 'px';
+        el.style.opacity = p.opacity;
+        el.style.transform = 'translate(' + displayX + 'px, ' + p.y + 'px)';
+      } else {
+        // Rain: thin vertical line
+        el.style.width = '1.5px';
+        el.style.height = p.size + 'px';
+        el.style.opacity = p.opacity;
+        el.style.transform = 'translate(' + p.x + 'px, ' + p.y + 'px)';
+      }
+    }
+
+    animFrameId = requestAnimationFrame(animateParticles);
+  }
+
+  // ── RIPPLE VISUAL EFFECT ──────────────────────────────────
+
+  function spawnRipple(x, y, className) {
+    const ripple = document.createElement('div');
+    ripple.className = 'ripple' + (className ? ' ' + className : '');
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    rippleLayer.appendChild(ripple);
+
+    // Clean up after animation
+    ripple.addEventListener('animationend', function() {
+      if (ripple.parentNode) {
+        ripple.parentNode.removeChild(ripple);
+      }
+    });
+    // Fallback cleanup after 1.5s
+    setTimeout(function() {
+      if (ripple.parentNode) {
+        ripple.parentNode.removeChild(ripple);
+      }
+    }, 1500);
+  }
+
+  // ── KEYBOARD HANDLING ─────────────────────────────────────
+
+  function handleKeydown(e) {
+    // Ignore if user is typing in a real input (not our hidden one)
+    if (e.target && e.target !== document.body && e.target !== hiddenInput && e.target.tagName === 'INPUT') {
+      return;
+    }
+
+    // First interaction: initialize audio
+    if (!audioInitialized) {
+      ensureAudio();
+    }
+
+    const key = e.key;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Prevent default only when no modifier is held (allow Ctrl+C, Cmd+W, etc.)
+    if (!e.ctrlKey && !e.metaKey && !e.altKey &&
+        (key.length === 1 || key === 'Backspace' || key === 'Enter' || key === ' ')) {
+      e.preventDefault();
+    }
+
+    // Increment keystroke counter
+    totalKeystrokes++;
+    saveStats();
+    updateStatsDisplay();
+
+    // Spawn ripple at random position
+    const rx = 60 + Math.random() * (w - 120);
+    const ry = 60 + Math.random() * (h - 120);
+
+    if (key === 'Enter') {
+      playEnter();
+      // Ripple near center
+      spawnRipple(w * 0.4 + Math.random() * w * 0.2, h * 0.35 + Math.random() * h * 0.3, 'enter-ripple');
+      // Full-screen subtle flash
+      enterFlash.classList.add('active');
+      setTimeout(function() { enterFlash.classList.remove('active'); }, 200);
+    } else if (key === 'Backspace') {
+      playBackspace();
+      spawnRipple(rx, ry);
+    } else if (key === ' ') {
+      playSpace();
+      spawnRipple(rx, ry, 'space-ripple');
+    } else if (key.length === 1) {
+      // Letters, numbers, punctuation
+      playTypewriterClick(key);
+      spawnRipple(rx, ry);
+    }
+    // Other keys (arrows, modifiers, etc.) — no sound, no ripple
+  }
+
+  // ── STATS ─────────────────────────────────────────────────
+
+  const STORAGE_KEY = 'rain_typewriter_total_keystrokes';
+
+  function loadStats() {
+    try {
+      const val = localStorage.getItem(STORAGE_KEY);
+      totalKeystrokes = val ? parseInt(val, 10) || 0 : 0;
+    } catch (e) {
+      totalKeystrokes = 0;
+    }
+  }
+
+  function saveStats() {
+    try {
+      localStorage.setItem(STORAGE_KEY, String(totalKeystrokes));
+    } catch (e) {
+      // localStorage unavailable (e.g., file:// with some browsers)
+    }
+  }
+
+  function updateStatsDisplay() {
+    statsEl.textContent = '🌧 今晚落下了 ' + totalKeystrokes + ' 滴雨';
+  }
+
+  // ── CONTROLS ──────────────────────────────────────────────
+
+  // Mode toggle: Rain <-> Snow
+  btnMode.addEventListener('click', function() {
+    isSnowMode = !isSnowMode;
+    if (isSnowMode) {
+      btnMode.innerHTML = '❄️ 雪';
+      btnMode.classList.add('active');
+    } else {
+      btnMode.innerHTML = '🌧️ 雨';
+      btnMode.classList.add('active');
+    }
+    rebuildParticles();
+    // Also update the hint if shown
+    if (!audioInitialized) {
+      hintOverlay.querySelector('.hint-text').textContent =
+        isSnowMode ? '敲下任意键，开始飘雪…' : '敲下任意键，开始下雨…';
+    }
+  });
+
+  // Mute toggle
+  btnMute.addEventListener('click', function() {
+    isMuted = !isMuted;
+    if (isMuted) {
+      btnMute.innerHTML = '🔕';
+      btnMute.classList.remove('active');
+      // Set ambient rain gain to 0
+      if (rainGainNode && audioCtx) {
+        rainGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+      }
+    } else {
+      btnMute.innerHTML = '🔊';
+      btnMute.classList.add('active');
+      // Restore ambient rain volume
+      if (rainGainNode && audioCtx) {
+        rainGainNode.gain.setTargetAtTime(
+          ambientVolume * 0.25,
+          audioCtx.currentTime,
+          0.05
+        );
+      }
+    }
+  });
+
+  // Volume slider
+  volumeSlider.addEventListener('input', function() {
+    ambientVolume = parseInt(this.value, 10) / 100;
+    if (rainGainNode && audioCtx && !isMuted) {
+      rainGainNode.gain.setTargetAtTime(
+        ambientVolume * 0.25,
+        audioCtx.currentTime,
+        0.05
+      );
+    }
+  });
+
+  // Thunder toggle
+  btnThunder.addEventListener('click', function() {
+    thunderEnabled = !thunderEnabled;
+    if (thunderEnabled) {
+      btnThunder.classList.add('active');
+      scheduleThunder();
+    } else {
+      btnThunder.classList.remove('active');
+      cancelThunder();
+    }
+  });
+
+  // ── CLICK / TOUCH to initialize audio ─────────────────────
+
+  document.body.addEventListener('click', function initClick() {
+    if (!audioInitialized) {
+      ensureAudio();
+      try { hiddenInput.focus(); } catch(e) {}
+    }
+  });
+  document.body.addEventListener('touchstart', function initTouch() {
+    if (!audioInitialized) {
+      ensureAudio();
+      try { hiddenInput.focus(); } catch(e) {}
+    }
+  }, { passive: true });
+
+  // Hidden input: any input triggers audio init and key handling
+  hiddenInput.addEventListener('keydown', function(e) {
+    handleKeydown(e);
+    // Clear the input so no text accumulates
+    setTimeout(function() { hiddenInput.value = ''; }, 0);
+  });
+  hiddenInput.addEventListener('input', function() {
+    hiddenInput.value = '';
+  });
+
+  // ── GLOBAL KEYDOWN (desktop) ──────────────────────────────
+
+  document.body.addEventListener('keydown', function(e) {
+    // Only handle here if not originating from hidden input
+    // (hidden input handles its own keydown)
+    if (e.target === hiddenInput) return;
+    handleKeydown(e);
+  });
+
+  // ── WINDOW RESIZE HANDLER ─────────────────────────────────
+
+  window.addEventListener('resize', function() {
+    // On resize, re-scatter particles horizontally
+    const w = window.innerWidth;
+    for (let i = 0; i < particles.length; i++) {
+      if (particles[i].x > w) {
+        particles[i].x = Math.random() * w;
+      }
+    }
+  });
+
+  // ── VISIBILITY CHANGE — resume AudioContext if needed ─────
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) return;
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  });
+
+  // ── INIT ──────────────────────────────────────────────────
+
+  function init() {
+    loadStats();
+    updateStatsDisplay();
+    createParticles();
+    animateParticles();
+    // Set initial volume slider
+    volumeSlider.value = Math.round(ambientVolume * 100);
+
+    // Slight delay then try to focus hidden input for mobile
+    setTimeout(function() {
+      try { hiddenInput.focus(); } catch(e) {}
+    }, 500);
+  }
+
+  init();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧬 点击进化论 — Roguelike 属性养成</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='54' font-size='54'>🧬</text></svg>">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a14;
+    --card: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.08);
+    --text: #c8c8dc;
+    --muted: #6a6a8a;
+    --gold: #ffd700;
+    --danger: #ff4757;
+    --success: #2ed573;
+    --accent: #7c5ce7;
+  }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Background particles */
+  .bg-particle {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    animation: bgFloat linear infinite;
+    opacity: 0.15;
+  }
+  @keyframes bgFloat {
+    0%   { transform: translateY(105vh) scale(0); opacity: 0; }
+    20%  { opacity: 0.15; }
+    80%  { opacity: 0.15; }
+    100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+  }
+
+  /* ===== Layout ===== */
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 16px 20px 40px;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+  }
+
+  /* Home link */
+  .home-link {
+    position: fixed; top: 12px; left: 16px; z-index: 100;
+    font-size: 0.8rem; color: var(--muted); text-decoration: none;
+    padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,0.04);
+    transition: all 0.25s;
+  }
+  .home-link:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+  /* ===== Header ===== */
+  .header {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 20px 0 4px;
+  }
+  .header h1 {
+    font-size: 2rem;
+    background: linear-gradient(135deg, #7c5ce7, #2ed573, #ffd700);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 4s ease infinite;
+  }
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .header .sub {
+    font-size: 0.85rem; color: var(--muted); margin-top: 4px;
+    display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 0.75rem; font-weight: 600; border: 1px solid;
+  }
+  .badge-locked { border-color: rgba(255,255,255,0.1); color: #555; background: rgba(255,255,255,0.02); }
+  .badge-unlocked { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,0.08); animation: badgeGlow 2s ease infinite; }
+  @keyframes badgeGlow {
+    0%, 100% { box-shadow: 0 0 8px rgba(255,215,0,0.2); }
+    50% { box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+  }
+
+  /* ===== Petri Dish (Main area) ===== */
+  .petri-dish {
+    grid-column: 1;
+    grid-row: 2 / 4;
+    background: radial-gradient(ellipse at center, rgba(124,92,231,0.08) 0%, transparent 70%),
+                var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    min-height: 420px;
+    position: relative;
+    overflow: hidden;
+  }
+  .petri-dish::before {
+    content: '';
+    position: absolute;
+    top: 30%; left: 50%;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(124,92,231,0.06) 0%, transparent 70%);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: dishPulse 4s ease-in-out infinite;
+  }
+  @keyframes dishPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.2); }
+  }
+
+  /* Organism circle */
+  .organism-wrap {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .organism {
+    border-radius: 50%;
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    cursor: default;
+    box-shadow: 0 0 30px rgba(124,92,231,0.3);
+  }
+  .organism.alive {
+    animation: orgPulse 2s ease-in-out infinite, orgJiggle 0.6s ease-in-out infinite;
+  }
+  .organism.extinct {
+    animation: orgDie 1s ease forwards;
+    filter: grayscale(1);
+  }
+  .organism.newborn {
+    animation: orgBorn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes orgPulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(124,92,231,0.3); }
+    50% { box-shadow: 0 0 50px rgba(124,92,231,0.55); }
+  }
+  @keyframes orgJiggle {
+    0%, 100% { transform: scale(1); }
+    25% { transform: scale(1.03) translateX(-1px); }
+    75% { transform: scale(1.03) translateX(1px); }
+  }
+  @keyframes orgBorn {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes orgDie {
+    0% { transform: scale(1); filter: grayscale(0); }
+    50% { transform: scale(0.3); filter: grayscale(0.5); }
+    100% { transform: scale(0); filter: grayscale(1); opacity: 0; }
+  }
+
+  .org-name {
+    font-weight: 700; font-size: 1rem;
+    background: linear-gradient(135deg, #c8a8ff, #7ce8a8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+
+  /* Stats bars */
+  .stat-bars {
+    display: flex; gap: 16px; z-index: 2; flex-wrap: wrap; justify-content: center;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat .icon { font-size: 1.2rem; }
+  .stat .val {
+    font-weight: 700; font-size: 1.1rem;
+    background: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .stat .bar-bg {
+    width: 48px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 4px; overflow: hidden;
+  }
+  .stat .bar-fill {
+    height: 100%; border-radius: 2px; transition: width 0.5s ease;
+  }
+  .bar-atk { background: linear-gradient(90deg, #ff6b6b, #ffa502); }
+  .bar-def { background: linear-gradient(90deg, #54a0ff, #5f27cd); }
+  .bar-spd { background: linear-gradient(90deg, #2ed573, #7bed9f); }
+
+  /* Breed button */
+  .btn-breed {
+    z-index: 2;
+    padding: 14px 40px;
+    font-size: 1.1rem; font-weight: 700;
+    border: none; border-radius: 30px;
+    background: linear-gradient(135deg, #7c5ce7, #a855f7);
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.05em;
+  }
+  .btn-breed:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(124,92,231,0.4);
+  }
+  .btn-breed:active {
+    transform: scale(0.95);
+  }
+  .btn-breed:disabled {
+    background: #333; cursor: not-allowed; transform: none; box-shadow: none;
+    color: #666;
+  }
+  .btn-breed::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%);
+    background-size: 200% 200%;
+    animation: btnShine 2s ease infinite;
+  }
+  @keyframes btnShine {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Splash particles on breed */
+  .splash-particle {
+    position: absolute; pointer-events: none; z-index: 10;
+    font-size: 1rem;
+    animation: splashUp 0.8s ease-out forwards;
+  }
+  @keyframes splashUp {
+    0% { transform: translate(0, 0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--sx), var(--sy)) scale(0); opacity: 0; }
+  }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* Event card */
+  .event-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; min-height: 80px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    transition: all 0.3s ease;
+  }
+  .event-card.danger  { border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.05); }
+  .event-card.success { border-color: rgba(46,213,115,0.3); background: rgba(46,213,115,0.05); }
+  .event-card.warning { border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.05); }
+  .event-emoji { font-size: 2rem; margin-bottom: 4px; }
+  .event-text { font-size: 0.95rem; font-weight: 600; line-height: 1.5; }
+  .event-result { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+  /* Hall of Fame */
+  .hall-of-fame {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px;
+  }
+  .hall-of-fame h3 {
+    font-size: 0.85rem; color: var(--gold); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .hof-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .hof-row .label { color: var(--muted); }
+  .hof-row .value { font-weight: 700; color: #ffd700; }
+  .hof-empty { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 12px 0; }
+
+  /* ===== Evolution Tree ===== */
+  .evo-tree-section {
+    grid-column: 2;
+    grid-row: 3;
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; max-height: 420px; overflow-y: auto;
+  }
+  .evo-tree-section h3 {
+    font-size: 0.85rem; color: var(--accent); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px; position: sticky; top: 0;
+    background: var(--bg); padding: 6px 0; z-index: 2;
+  }
+  .tree-node {
+    display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+    border-radius: 10px; margin-bottom: 4px;
+    transition: all 0.3s ease; position: relative;
+  }
+  .tree-node::before {
+    content: '';
+    position: absolute; left: 15px; top: -4px;
+    width: 2px; height: 4px;
+    background: rgba(255,255,255,0.1);
+  }
+  .tree-node:first-child::before { display: none; }
+  .tree-node .node-dot {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+  }
+  .tree-node.current .node-dot { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,215,0,0.5); }
+  .tree-node.alive .node-dot { border-color: rgba(46,213,115,0.5); }
+  .tree-node.dead .node-dot { border-color: rgba(255,71,87,0.4); filter: grayscale(0.5); opacity: 0.5; }
+  .tree-node .node-info { flex: 1; min-width: 0; }
+  .tree-node .node-gen { font-size: 0.7rem; color: var(--muted); }
+  .tree-node .node-stats { font-size: 0.7rem; color: #888; }
+  .tree-node .node-event { font-size: 0.65rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-empty { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 20px 0; }
+
+  /* ===== Overlay ===== */
+  .overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+    animation: overlayIn 0.4s ease;
+  }
+  @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+  .overlay .big-emoji { font-size: 5rem; animation: shake 0.5s ease; }
+  @keyframes shake {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-10deg); }
+    75% { transform: rotate(10deg); }
+  }
+  .overlay .msg { font-size: 1.3rem; font-weight: 700; text-align: center; }
+  .overlay .sub-msg { font-size: 0.9rem; color: var(--muted); text-align: center; }
+  .btn-restart {
+    padding: 12px 32px; border-radius: 25px; border: none; font-size: 1rem; font-weight: 700;
+    background: linear-gradient(135deg, #ffd700, #ffa502); color: #1a1a2e;
+    cursor: pointer; transition: all 0.3s ease;
+  }
+  .btn-restart:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(255,215,0,0.3); }
+
+  /* Badge unlock overlay */
+  .badge-overlay {
+    position: fixed; inset: 0; z-index: 300; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    animation: badgeCelebrate 2.5s ease forwards;
+  }
+  @keyframes badgeCelebrate {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .badge-popup {
+    font-size: 3rem; padding: 30px;
+    background: rgba(0,0,0,0.9); border: 2px solid var(--gold);
+    border-radius: 24px; text-align: center;
+    animation: badgePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes badgePop {
+    0% { transform: scale(0); }
+    100% { transform: scale(1); }
+  }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 700px) {
+    .app {
+      grid-template-columns: 1fr;
+      padding: 12px;
+    }
+    .petri-dish {
+      grid-column: 1; grid-row: auto; min-height: 340px;
+    }
+    .sidebar { grid-column: 1; grid-row: auto; }
+    .evo-tree-section { grid-column: 1; grid-row: auto; max-height: 300px; }
+    .stat-bars { gap: 10px; }
+    .btn-breed { padding: 12px 28px; font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<a class="home-link" href="index.html">🏠 首页</a>
+
+<div id="app" class="app">
+  <!-- Header -->
+  <div class="header">
+    <h1>🧬 点击进化论</h1>
+    <div class="sub">
+      <span id="genDisplay">第 1 代</span>
+      <span id="badgeDisplay" class="badge badge-locked">🧬 生命不息</span>
+    </div>
+  </div>
+
+  <!-- Petri Dish -->
+  <div class="petri-dish" id="petriDish">
+    <div class="organism-wrap">
+      <div class="org-name" id="orgName">原始细胞</div>
+      <div class="organism alive" id="organism"></div>
+    </div>
+    <div class="stat-bars" id="statBars"></div>
+    <button class="btn-breed" id="btnBreed">🦠 分裂繁衍</button>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="event-card" id="eventCard">
+      <div class="event-emoji">🔬</div>
+      <div class="event-text">培养皿已就绪</div>
+      <div class="event-result">点击按钮开始进化之旅</div>
+    </div>
+    <div class="hall-of-fame" id="hallOfFame">
+      <h3>🏆 最强基因记录</h3>
+      <div class="hof-empty">还没有记录，开始你的第一代吧</div>
+    </div>
+  </div>
+
+  <!-- Evolution Tree -->
+  <div class="evo-tree-section" id="evoTreeSection">
+    <h3>🌳 进化树</h3>
+    <div class="tree-empty" id="treeEmpty">等待第一代诞生……</div>
+    <div id="treeNodes"></div>
+  </div>
+</div>
+
+<script>
+// ==================== GAME STATE ====================
+const MAX_STAT = 10;
+
+// Events pool — each has name, emoji, test stat(s), threshold formula, flavor text
+const EVENTS = [
+  { id: 'predator', emoji: '🦖', name: '遭遇捕食者！', test: 'atk', threshold: () => 3 + Math.floor(Math.random() * 6),
+    pass: '你用强大的攻击力击退了捕食者！', fail: '捕食者一口吞掉了你……' },
+  { id: 'storm', emoji: '🌪️', name: '环境剧变！', test: 'def', threshold: () => 3 + Math.floor(Math.random() * 6),
+    pass: '坚硬的细胞壁挡住了风暴！', fail: '细胞壁破裂，你被冲走了……' },
+  { id: 'migration', emoji: '🏃', name: '食物大迁徙！', test: 'spd', threshold: () => 3 + Math.floor(Math.random() * 6),
+    pass: '你飞速追上了食物群！', fail: '你太慢了，饿死在了路上……' },
+  { id: 'virus', emoji: '🦠', name: '病毒感染！', test: 'def', threshold: () => 4 + Math.floor(Math.random() * 5),
+    pass: '你的防御系统成功抵抗了病毒！', fail: '病毒击穿了防线，细胞溶解……' },
+  { id: 'radiation', emoji: '⚡', name: '辐射风暴！', test: 'atk', threshold: () => 4 + Math.floor(Math.random() * 5),
+    pass: '辐射反而让你获得了能量！攻击力永久+1', fail: '辐射摧毁了你的DNA……',
+    bonus: (org) => { org.atk = Math.min(MAX_STAT, org.atk + 1); } },
+  { id: 'nutrient', emoji: '🧪', name: '找到营养液！', test: 'total', threshold: () => 12 + Math.floor(Math.random() * 7),
+    pass: '营养液让你快速进化！全属性+1', fail: '营养液有毒，你被毒死了……',
+    bonus: (org) => { org.atk = Math.min(MAX_STAT, org.atk + 1); org.def = Math.min(MAX_STAT, org.def + 1); org.spd = Math.min(MAX_STAT, org.spd + 1); } },
+  { id: 'bloom', emoji: '💎', name: '完美环境！', test: 'any', threshold: () => 0,
+    pass: '环境无比舒适，你安然度过了一代。', fail: null }, // Always passes
+  { id: 'extinction', emoji: '🌑', name: '大灭绝事件！', test: 'total', threshold: () => 15 + Math.floor(Math.random() * 7),
+    pass: '奇迹般地，你挺过了大灭绝！你是天选之细胞！', fail: '大灭绝抹去了所有生命痕迹……' },
+];
+
+const EXTINCT_MESSAGES = [
+  '灭绝了！但生命的火种永不熄灭...',
+  '适者生存，这次运气差了点。',
+  '进化之路总是充满牺牲……再来一次！',
+  '你的基因已载入史册。新生命即将诞生。',
+];
+
+function state() {
+  return {
+    organism: { atk: 5, def: 5, spd: 5 },
+    generation: 1,
+    consecutive: 1,        // consecutive survived generations
+    maxConsecutive: 1,     // best streak
+    alive: true,
+    tree: [],              // [{gen, atk, def, spd, event, survived, color}]
+    badgeUnlocked: false,
+    badgeShown: false,     // prevent re-showing badge animation
+  };
+}
+
+let G = loadState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('click-evolution');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Validate
+      if (parsed.organism && typeof parsed.generation === 'number') {
+        parsed.badgeShown = parsed.badgeUnlocked || false;
+        parsed.alive = true;
+        return parsed;
+      }
+    }
+  } catch(e) {}
+  return state();
+}
+
+function saveState() {
+  try {
+    localStorage.setItem('click-evolution', JSON.stringify({
+      organism: G.organism,
+      generation: G.generation,
+      consecutive: G.consecutive,
+      maxConsecutive: G.maxConsecutive,
+      alive: G.alive,
+      tree: G.tree.slice(-30), // keep last 30 nodes
+      badgeUnlocked: G.badgeUnlocked,
+      badgeShown: G.badgeShown,
+    }));
+  } catch(e) {}
+}
+
+// Hall of Fame
+function loadHallOfFame() {
+  try {
+    const raw = localStorage.getItem('click-evolution-hof');
+    return raw ? JSON.parse(raw) : { bestAtk: 0, bestDef: 0, bestSpd: 0, bestTotal: 0, highestGen: 0, longestStreak: 0 };
+  } catch(e) { return { bestAtk: 0, bestDef: 0, bestSpd: 0, bestTotal: 0, highestGen: 0, longestStreak: 0 }; }
+}
+
+function updateHallOfFame() {
+  const hof = loadHallOfFame();
+  let updated = false;
+  const t = G.organism.atk + G.organism.def + G.organism.spd;
+  if (G.organism.atk > hof.bestAtk) { hof.bestAtk = G.organism.atk; updated = true; }
+  if (G.organism.def > hof.bestDef) { hof.bestDef = G.organism.def; updated = true; }
+  if (G.organism.spd > hof.bestSpd) { hof.bestSpd = G.organism.spd; updated = true; }
+  if (t > hof.bestTotal) { hof.bestTotal = t; updated = true; }
+  if (G.generation > hof.highestGen) { hof.highestGen = G.generation; updated = true; }
+  if (G.maxConsecutive > hof.longestStreak) { hof.longestStreak = G.maxConsecutive; updated = true; }
+  if (updated) {
+    localStorage.setItem('click-evolution-hof', JSON.stringify(hof));
+  }
+  renderHallOfFame(hof);
+}
+
+function renderHallOfFame(hof) {
+  const el = document.getElementById('hallOfFame');
+  const hasData = hof.bestAtk > 0 || hof.bestDef > 0 || hof.bestSpd > 0;
+  if (!hasData) {
+    el.innerHTML = '<h3>🏆 最强基因记录</h3><div class="hof-empty">还没有记录，开始你的第一代吧</div>';
+    return;
+  }
+  el.innerHTML = `
+    <h3>🏆 最强基因记录</h3>
+    <div class="hof-row"><span class="label">⚔️ 最高攻击力</span><span class="value">${hof.bestAtk}</span></div>
+    <div class="hof-row"><span class="label">🛡️ 最高防御力</span><span class="value">${hof.bestDef}</span></div>
+    <div class="hof-row"><span class="label">💨 最高敏捷度</span><span class="value">${hof.bestSpd}</span></div>
+    <div class="hof-row"><span class="label">📊 最高总属性</span><span class="value">${hof.bestTotal}</span></div>
+    <div class="hof-row"><span class="label">🧬 最高代数</span><span class="value">第 ${hof.highestGen} 代</span></div>
+    <div class="hof-row"><span class="label">🔥 最长存活链</span><span class="value">${hof.longestStreak} 代</span></div>
+  `;
+}
+
+// ==================== RENDER ====================
+function renderOrganism() {
+  const org = G.organism;
+  const total = org.atk + org.def + org.spd;
+  const maxTotal = MAX_STAT * 3;
+
+  // Size: 40px to 140px based on total stats
+  const size = 40 + (total / maxTotal) * 100;
+
+  // Color: HSV hue based on stat balance, saturation + lightness based on total
+  const atkRatio = org.atk / MAX_STAT;
+  const defRatio = org.def / MAX_STAT;
+  const spdRatio = org.spd / MAX_STAT;
+  const hsl = orgColor(org);
+
+  const el = document.getElementById('organism');
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.background = `radial-gradient(circle at 35% 35%, ${hsl.light}, ${hsl.base}, ${hsl.dark})`;
+  el.style.boxShadow = `0 0 ${20 + total * 2}px ${hsl.glow}`;
+
+  // Name based on generation
+  const names = ['原始细胞', '原始虫', '原始蠕虫', '原始水母', '原始鱼类', '原始两栖', '原始爬行', '原始哺乳', '原始智人', '超进化体'];
+  const nameIdx = Math.min(G.generation - 1, names.length - 1);
+  document.getElementById('orgName').textContent = names[nameIdx] + (G.generation > names.length ? ` Mk.${G.generation - names.length + 1}` : '');
+
+  // Stats
+  document.getElementById('statBars').innerHTML = `
+    <div class="stat">
+      <span class="icon">⚔️</span>
+      <div class="val">${org.atk}</div>
+      <div class="bar-bg"><div class="bar-fill bar-atk" style="width:${org.atk / MAX_STAT * 100}%"></div></div>
+      <div style="font-size:0.65rem;color:var(--muted)">攻击</div>
+    </div>
+    <div class="stat">
+      <span class="icon">🛡️</span>
+      <div class="val">${org.def}</div>
+      <div class="bar-bg"><div class="bar-fill bar-def" style="width:${org.def / MAX_STAT * 100}%"></div></div>
+      <div style="font-size:0.65rem;color:var(--muted)">防御</div>
+    </div>
+    <div class="stat">
+      <span class="icon">💨</span>
+      <div class="val">${org.spd}</div>
+      <div class="bar-bg"><div class="bar-fill bar-spd" style="width:${org.spd / MAX_STAT * 100}%"></div></div>
+      <div style="font-size:0.65rem;color:var(--muted)">敏捷</div>
+    </div>
+  `;
+
+  // Generation display
+  document.getElementById('genDisplay').textContent = `第 ${G.generation} 代`;
+
+  // Badge
+  const badge = document.getElementById('badgeDisplay');
+  if (G.badgeUnlocked) {
+    badge.className = 'badge badge-unlocked';
+    badge.textContent = '🧬 生命不息 · 已解锁';
+  } else {
+    badge.className = 'badge badge-locked';
+    badge.textContent = `🧬 生命不息 (${G.maxConsecutive}/10)`;
+  }
+}
+
+function orgColor(org) {
+  // Blue-purple base, shifts based on stat ratios
+  const total = org.atk + org.def + org.spd;
+  const maxTotal = MAX_STAT * 3;
+  const saturation = 30 + (total / maxTotal) * 50; // 30-80%
+  const lightness = 25 + (total / maxTotal) * 25; // 25-50%
+
+  // Hue: atk→red (0), def→blue (220), spd→green (120)
+  const hue = (org.atk / MAX_STAT * 0 + org.def / MAX_STAT * 220 + org.spd / MAX_STAT * 120) /
+              (org.atk / MAX_STAT + org.def / MAX_STAT + org.spd / MAX_STAT) * 1 || 180;
+
+  return {
+    base: `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`,
+    light: `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness + 20)}%)`,
+    dark: `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness - 10)}%)`,
+    glow: `hsla(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness + 10)}%, 0.4)`,
+  };
+}
+
+function renderEvent(event, survived, statVal, threshold) {
+  const card = document.getElementById('eventCard');
+  card.className = 'event-card';
+  if (!event) {
+    card.classList.add('warning');
+    card.innerHTML = `<div class="event-emoji">🔬</div><div class="event-text">培养皿已就绪</div><div class="event-result">点击按钮开始进化之旅</div>`;
+    return;
+  }
+  if (survived) {
+    card.classList.add('success');
+  } else {
+    card.classList.add('danger');
+  }
+
+  const testLabel = event.test === 'atk' ? '攻击力' : event.test === 'def' ? '防御力' : event.test === 'spd' ? '敏捷度' : event.test === 'total' ? '总属性' : '—';
+  const resultText = survived
+    ? event.pass
+    : (event.fail || '判定失败……');
+  const detail = event.test === 'any' ? '' : ` (判定: ${testLabel} ${statVal} vs ${threshold})`;
+
+  card.innerHTML = `
+    <div class="event-emoji">${event.emoji}</div>
+    <div class="event-text">${event.name} ${survived ? '✅' : '❌'}</div>
+    <div class="event-result">${resultText}${detail}</div>
+  `;
+}
+
+function renderTree() {
+  const container = document.getElementById('treeNodes');
+  const empty = document.getElementById('treeEmpty');
+
+  if (G.tree.length === 0) {
+    empty.style.display = 'block';
+    container.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  container.innerHTML = G.tree.slice().reverse().map((node, i) => {
+    const isCurrent = i === 0 && G.alive;
+    const statusClass = node.survived ? (isCurrent ? 'current' : 'alive') : 'dead';
+    const total = node.atk + node.def + node.spd;
+    const color = orgColor(node);
+    return `
+      <div class="tree-node ${statusClass}">
+        <div class="node-dot" style="background:${color.base}; box-shadow: 0 0 6px ${color.glow}"></div>
+        <div class="node-info">
+          <div class="node-gen">第 ${node.gen} 代 ${node.survived ? '🟢' : '💀'}</div>
+          <div class="node-stats">⚔${node.atk} 🛡${node.def} 💨${node.spd} (总${total})</div>
+          <div class="node-event">${node.event}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== BREEDING ====================
+function breed() {
+  if (!G.alive) return;
+
+  // Mutate: each stat has chance to change by ±1 or ±2
+  const parent = G.organism;
+  const offspring = { ...parent };
+
+  // Random mutation: each stat independently drifts
+  for (const key of ['atk', 'def', 'spd']) {
+    const roll = Math.random();
+    if (roll < 0.3) {
+      // +1 or +2
+      offspring[key] = Math.min(MAX_STAT, offspring[key] + (Math.random() < 0.6 ? 1 : 2));
+    } else if (roll < 0.55) {
+      // -1 or -2
+      offspring[key] = Math.max(1, offspring[key] - (Math.random() < 0.6 ? 1 : 2));
+    }
+    // else no change (45%)
+  }
+
+  // Also small chance of a "breakthrough" mutation: +3 to random stat
+  if (Math.random() < 0.08) {
+    const keys = ['atk', 'def', 'spd'];
+    const k = keys[Math.floor(Math.random() * 3)];
+    offspring[k] = Math.min(MAX_STAT, offspring[k] + 3);
+  }
+
+  G.organism = offspring;
+  G.generation++;
+
+  // Pick a random event
+  const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+
+  // Calculate relevant stat value
+  let statVal;
+  if (event.test === 'atk') statVal = offspring.atk;
+  else if (event.test === 'def') statVal = offspring.def;
+  else if (event.test === 'spd') statVal = offspring.spd;
+  else if (event.test === 'total') statVal = offspring.atk + offspring.def + offspring.spd;
+  else statVal = 0; // 'any' → always passes
+
+  const threshold = event.threshold();
+  const survived = event.test === 'any' || statVal >= threshold;
+
+  // Apply bonus if survived
+  if (survived && event.bonus) {
+    event.bonus(G.organism);
+  }
+
+  const eventLabel = `${event.emoji} ${event.name}: ${survived ? '存活' : '灭绝'}`;
+
+  // Add to tree
+  G.tree.push({
+    gen: G.generation,
+    atk: offspring.atk,
+    def: offspring.def,
+    spd: offspring.spd,
+    event: eventLabel,
+    survived,
+  });
+
+  // Update state
+  if (survived) {
+    G.consecutive++;
+    if (G.consecutive > G.maxConsecutive) {
+      G.maxConsecutive = G.consecutive;
+    }
+    // Check badge
+    if (G.maxConsecutive >= 10 && !G.badgeUnlocked) {
+      G.badgeUnlocked = true;
+      G.badgeShown = true;
+      showBadgeOverlay();
+    }
+  } else {
+    G.consecutive = 0;
+    G.alive = false;
+    updateHallOfFame();
+    renderAll();
+    saveState();
+    setTimeout(() => showExtinctOverlay(), 600);
+    return;
+  }
+
+  updateHallOfFame();
+  renderAll();
+  saveState();
+  spawnSplashParticles();
+}
+
+// ==================== EXTINCTION ====================
+function showExtinctOverlay() {
+  const msg = EXTINCT_MESSAGES[Math.floor(Math.random() * EXTINCT_MESSAGES.length)];
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'extinctOverlay';
+  overlay.innerHTML = `
+    <div class="big-emoji">💀</div>
+    <div class="msg">第 ${G.generation} 代 · 灭绝</div>
+    <div class="sub-msg">${msg}<br>存活链: ${G.maxConsecutive} 代</div>
+    <button class="btn-restart" id="btnRestart">🔄 重新开始进化</button>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('btnRestart').addEventListener('click', restart);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) restart();
+  });
+}
+
+function restart() {
+  const overlay = document.getElementById('extinctOverlay');
+  if (overlay) overlay.remove();
+
+  G.organism = { atk: 3 + Math.floor(Math.random() * 5), def: 3 + Math.floor(Math.random() * 5), spd: 3 + Math.floor(Math.random() * 5) };
+  G.generation = 1;
+  G.consecutive = 1;
+  G.alive = true;
+  // Don't clear tree — it shows the history
+
+  const organism = document.getElementById('organism');
+  organism.classList.remove('extinct');
+  organism.classList.add('newborn');
+  setTimeout(() => organism.classList.remove('newborn'), 600);
+
+  renderAll();
+  saveState();
+  renderEvent(null);
+
+  document.getElementById('btnBreed').disabled = false;
+}
+
+// ==================== BADGE ====================
+function showBadgeOverlay() {
+  const overlay = document.createElement('div');
+  overlay.className = 'badge-overlay';
+  overlay.innerHTML = `
+    <div class="badge-popup">
+      <div style="font-size:4rem">🧬</div>
+      <div style="font-size:1.5rem;font-weight:700;color:#ffd700;margin:8px 0">生命不息</div>
+      <div style="color:#ccc">连续存活 10 代！你是真正的进化大师！</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.remove(), 2600);
+}
+
+// ==================== PARTICLES ====================
+function spawnSplashParticles() {
+  const dish = document.getElementById('petriDish');
+  const btn = document.getElementById('btnBreed');
+  const rect = btn.getBoundingClientRect();
+  const dishRect = dish.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2 - dishRect.left;
+  const cy = rect.top + rect.height / 2 - dishRect.top;
+
+  const emojis = ['🦠','✨','🧬','💫','🔮','🌟','💎'];
+  for (let i = 0; i < 12; i++) {
+    const particle = document.createElement('span');
+    particle.className = 'splash-particle';
+    particle.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    particle.style.left = cx + 'px';
+    particle.style.top = cy + 'px';
+    particle.style.setProperty('--sx', (Math.random() - 0.5) * 200 + 'px');
+    particle.style.setProperty('--sy', -(Math.random() * 120 + 30) + 'px');
+    particle.style.animationDuration = (0.5 + Math.random() * 0.6) + 's';
+    dish.appendChild(particle);
+    setTimeout(() => particle.remove(), 1200);
+  }
+}
+
+// ==================== RENDER ALL ====================
+function renderAll() {
+  renderOrganism();
+  renderTree();
+  document.getElementById('btnBreed').disabled = !G.alive;
+}
+
+// ==================== EVENTS ====================
+document.getElementById('btnBreed').addEventListener('click', () => {
+  if (!G.alive) return;
+  breed();
+});
+
+// Audio feedback on breed
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playPop() {
+  try {
+    initAudio();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, t);
+    osc.frequency.exponentialRampToValueAtTime(200, t + 0.15);
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.2);
+  } catch(e) {}
+}
+
+document.getElementById('btnBreed').addEventListener('click', playPop);
+
+// ==================== INIT ====================
+function init() {
+  renderAll();
+  updateHallOfFame();
+  renderEvent(null);
+
+  // If badge was unlocked in previous session, show it now
+  if (G.badgeUnlocked) {
+    document.getElementById('badgeDisplay').className = 'badge badge-unlocked';
+    document.getElementById('badgeDisplay').textContent = '🧬 生命不息 · 已解锁';
+  }
+
+  // If extinct from last session, show restart overlay
+  if (!G.alive) {
+    document.getElementById('organism').classList.add('extinct');
+    document.getElementById('btnBreed').disabled = true;
+    setTimeout(() => showExtinctOverlay(), 300);
+  }
+
+  // Check badge progress
+  if (G.maxConsecutive >= 10 && !G.badgeUnlocked) {
+    G.badgeUnlocked = true;
+    saveState();
+    showBadgeOverlay();
+  }
+}
+
+// ==================== BG PARTICLES ====================
+function spawnBgParticles() {
+  const colors = ['#7c5ce7','#a855f7','#2ed573','#ffd700','#ff6b6b','#54a0ff'];
+  for (let i = 0; i < 25; i++) {
+    const p = document.createElement('div');
+    p.className = 'bg-particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.width = p.style.height = (2 + Math.random() * 6) + 'px';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDuration = (10 + Math.random() * 25) + 's';
+    p.style.animationDelay = -(Math.random() * 25) + 's';
+    document.body.appendChild(p);
+  }
+}
+
+spawnBgParticles();
+init();
+</script>
+
+</body>
+</html>

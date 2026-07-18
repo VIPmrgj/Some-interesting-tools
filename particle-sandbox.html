@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>宇宙大爆炸 — 粒子物理沙盒</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌌</text></svg>">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    cursor: crosshair;
+  }
+
+  /* 首页链接 — 左上角 */
+  .home-link {
+    position: fixed;
+    top: 16px; left: 20px;
+    color: rgba(255,255,255,0.45);
+    text-decoration: none;
+    font-size: 15px;
+    z-index: 10;
+    transition: color 0.3s;
+    letter-spacing: 0.5px;
+  }
+  .home-link:hover { color: rgba(255,255,255,0.9); }
+
+  /* 粒子计数 — 右下角 */
+  .particle-count {
+    position: fixed;
+    bottom: 20px; right: 24px;
+    color: rgba(255,255,255,0.5);
+    font-size: 14px;
+    z-index: 10;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  /* FPS 计数器 — 粒子计数上方 */
+  .fps-display {
+    position: fixed;
+    bottom: 44px; right: 24px;
+    color: rgba(255,255,255,0.35);
+    font-size: 12px;
+    z-index: 10;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  /* 控制面板 */
+  .control-panel {
+    position: fixed;
+    bottom: 24px; left: 20px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .panel-toggle {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(20, 20, 30, 0.75);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.7);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s;
+    align-self: flex-start;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .panel-toggle:hover {
+    background: rgba(40, 40, 60, 0.85);
+    border-color: rgba(255,255,255,0.3);
+  }
+
+  .panel-body {
+    background: rgba(14, 14, 24, 0.82);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 220px;
+    max-width: 260px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: opacity 0.3s, transform 0.3s, max-height 0.3s;
+    overflow: hidden;
+  }
+  .panel-body.collapsed {
+    opacity: 0;
+    transform: translateY(10px);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: -8px;
+    border-width: 0;
+    pointer-events: none;
+  }
+
+  .panel-section-title {
+    color: rgba(255,255,255,0.55);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: -8px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .control-row label {
+    color: rgba(255,255,255,0.8);
+    font-size: 13px;
+    white-space: nowrap;
+    min-width: 50px;
+  }
+
+  .control-row input[type="range"] {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.15);
+    outline: none;
+    cursor: pointer;
+  }
+  .control-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.3);
+    transition: transform 0.15s;
+  }
+  .control-row input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+
+  .value-tag {
+    color: rgba(255,255,255,0.55);
+    font-size: 12px;
+    min-width: 32px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .toggle-row span {
+    color: rgba(255,255,255,0.8);
+    font-size: 13px;
+  }
+
+  /* 自定义开关 */
+  .toggle-switch {
+    position: relative;
+    width: 40px; height: 22px;
+    flex-shrink: 0;
+  }
+  .toggle-switch input { display: none; }
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.15);
+    border-radius: 11px;
+    cursor: pointer;
+    transition: background 0.25s;
+  }
+  .toggle-slider::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.25s;
+  }
+  .toggle-switch input:checked + .toggle-slider {
+    background: rgba(100, 160, 255, 0.6);
+  }
+  .toggle-switch input:checked + .toggle-slider::after {
+    transform: translateX(18px);
+  }
+
+  .btn-clear {
+    width: 100%;
+    padding: 7px 0;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255, 60, 60, 0.2);
+    color: rgba(255,255,255,0.8);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.25s;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+  }
+  .btn-clear:hover {
+    background: rgba(255, 60, 60, 0.4);
+    border-color: rgba(255, 60, 60, 0.5);
+  }
+
+  /* 响应式 */
+  @media (max-width: 600px) {
+    .panel-body { min-width: 180px; max-width: 220px; padding: 14px 16px; gap: 10px; }
+    .home-link { font-size: 13px; top: 10px; left: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<a class="home-link" href="index.html">🏠 首页</a>
+
+<div class="particle-count" id="particleCount">粒子: 0</div>
+<div class="fps-display" id="fpsDisplay">FPS: --</div>
+
+<div class="control-panel">
+  <button class="panel-toggle" id="panelToggle" title="显示/隐藏控制面板">⚙</button>
+  <div class="panel-body" id="panelBody">
+    <div class="panel-section-title">物理参数</div>
+
+    <div class="control-row">
+      <label for="gravitySlider">重力</label>
+      <input type="range" id="gravitySlider" min="-500" max="500" value="300" step="10">
+      <span class="value-tag" id="gravityVal">300</span>
+    </div>
+
+    <div class="control-row">
+      <label for="burstSlider">爆炸数量</label>
+      <input type="range" id="burstSlider" min="50" max="400" value="120" step="10">
+      <span class="value-tag" id="burstVal">120</span>
+    </div>
+
+    <div class="control-row">
+      <label for="sizeSlider">粒子大小</label>
+      <input type="range" id="sizeSlider" min="1" max="8" value="3" step="0.5">
+      <span class="value-tag" id="sizeVal">3</span>
+    </div>
+
+    <div class="toggle-row">
+      <span>🌈 彩虹模式</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="rainbowToggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span>🎆 自动烟花</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="autoFireworkToggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <button class="btn-clear" id="btnClear">🧹 清除所有粒子</button>
+  </div>
+</div>
+
+<script>
+;(function () {
+  "use strict";
+
+  // ──────────────────────────────────────────────
+  // DOM references
+  // ──────────────────────────────────────────────
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const elParticleCount = document.getElementById("particleCount");
+  const elFpsDisplay = document.getElementById("fpsDisplay");
+  const elPanelToggle = document.getElementById("panelToggle");
+  const elPanelBody = document.getElementById("panelBody");
+
+  const slGravity = document.getElementById("gravitySlider");
+  const slBurst = document.getElementById("burstSlider");
+  const slSize = document.getElementById("sizeSlider");
+  const elGravityVal = document.getElementById("gravityVal");
+  const elBurstVal = document.getElementById("burstVal");
+  const elSizeVal = document.getElementById("sizeVal");
+  const chkRainbow = document.getElementById("rainbowToggle");
+  const chkAutoFirework = document.getElementById("autoFireworkToggle");
+  const btnClear = document.getElementById("btnClear");
+
+  // ──────────────────────────────────────────────
+  // State
+  // ──────────────────────────────────────────────
+  let particles = [];
+  const MAX_PARTICLES = 4000;
+
+  // Configurable parameters (synced from sliders)
+  let gravity = 300;           // px/s²
+  let burstCount = 120;        // particles per normal burst
+  let baseParticleSize = 3;    // px radius
+  let rainbowMode = false;
+  let autoFirework = false;
+
+  // Rainbow hue oscillator
+  let rainbowHue = 0;
+
+  // Drag-emit state
+  let mouseDown = false;
+  let mouseX = 0, mouseY = 0;
+  let mouseDownX = 0, mouseDownY = 0;   // position where press started
+  let mouseMovedDuringPress = false;    // true if cursor moved enough to count as drag
+  const DRAG_DISTANCE_THRESHOLD = 6;    // px — minimum movement to treat as drag
+  const DRAG_EMIT_RATE = 900;           // particles per second while dragging
+  let dragAccumulator = 0;
+
+  // Double-click detection
+  let lastClickTime = 0;
+  const DOUBLE_CLICK_WINDOW = 350; // ms
+
+  // Auto-firework timer
+  let autoFireworkTimer = 0;
+
+  // FPS tracking
+  let frameCount = 0;
+  let fpsAccumulator = 0;
+  let currentFPS = 0;
+
+  // Last timestamp for deltaTime
+  let lastTimestamp = 0;
+
+  // Trail alpha for motion blur rect
+  const TRAIL_ALPHA = 0.13;
+
+  // Bounce restitution (velocity multiplier on wall bounce)
+  // ~60% energy loss means velocity retains ~63% = sqrt(0.4)
+  const BOUNCE_RESTITUTION = 0.63;
+
+  // Air drag — exponential decay per second (normalized)
+  // 0.5% per frame at 60 fps  =>  factor per second = (1 - 0.005)^60 ≈ 0.74
+  // So we want exp(-drag) ≈ 0.74  =>  drag ≈ -ln(0.74) ≈ 0.3
+  const DRAG_COEFFICIENT = 0.3;
+
+  // ──────────────────────────────────────────────
+  // Starfield — pre-generated static stars
+  // ──────────────────────────────────────────────
+  const STAR_COUNT = 65;
+  const stars = [];
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      // Position stored as 0..1 fraction of canvas
+      x: Math.random(),
+      y: Math.random(),
+      r: 0.4 + Math.random() * 1.4,           // radius
+      baseAlpha: 0.25 + Math.random() * 0.45, // base brightness
+      phase: Math.random() * Math.PI * 2,     // twinkle phase offset
+      twinkleSpeed: 0.4 + Math.random() * 1.8 // twinkle frequency multiplier
+    });
+  }
+
+  // ──────────────────────────────────────────────
+  // Canvas sizing
+  // ──────────────────────────────────────────────
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ──────────────────────────────────────────────
+  // Control panel collapse
+  // ──────────────────────────────────────────────
+  let panelVisible = true;
+  elPanelToggle.addEventListener("click", function (e) {
+    e.stopPropagation();
+    panelVisible = !panelVisible;
+    if (panelVisible) {
+      elPanelBody.classList.remove("collapsed");
+      elPanelToggle.textContent = "⚙";
+    } else {
+      elPanelBody.classList.add("collapsed");
+      elPanelToggle.textContent = "⚙";
+    }
+  });
+
+  // ──────────────────────────────────────────────
+  // Slider bindings
+  // ──────────────────────────────────────────────
+  slGravity.addEventListener("input", function () {
+    gravity = Number(this.value);
+    elGravityVal.textContent = gravity;
+  });
+  slBurst.addEventListener("input", function () {
+    burstCount = Number(this.value);
+    elBurstVal.textContent = burstCount;
+  });
+  slSize.addEventListener("input", function () {
+    baseParticleSize = Number(this.value);
+    elSizeVal.textContent = baseParticleSize;
+  });
+  chkRainbow.addEventListener("change", function () {
+    rainbowMode = this.checked;
+  });
+  chkAutoFirework.addEventListener("change", function () {
+    autoFirework = this.checked;
+    autoFireworkTimer = 0; // reset timer so first burst happens soon
+  });
+  btnClear.addEventListener("click", function () {
+    particles.length = 0;
+  });
+
+  // ──────────────────────────────────────────────
+  // Particle creation
+  // ──────────────────────────────────────────────
+  function createParticle(x, y) {
+    const angle = Math.random() * Math.PI * 2;
+    // Speed: random between 80 and 500 px/s for nice radial spread
+    const speed = 80 + Math.random() * 420;
+
+    let hue;
+    if (rainbowMode) {
+      // Use rotating global hue with slight per-particle variation
+      hue = (rainbowHue + (Math.random() - 0.5) * 40 + 360) % 360;
+    } else {
+      hue = Math.random() * 360;
+    }
+
+    return {
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: baseParticleSize * (0.5 + Math.random() * 1.0),
+      hue: hue,
+      lifetime: 1500 + Math.random() * 1500, // 1.5–3 seconds in ms
+      age: 0
+    };
+  }
+
+  /** Emit `count` particles at (x, y) */
+  function burst(x, y, count) {
+    const clampedX = Math.max(0, Math.min(canvas.width, x));
+    const clampedY = Math.max(0, Math.min(canvas.height, y));
+    for (let i = 0; i < count; i++) {
+      // Enforce particle cap
+      while (particles.length >= MAX_PARTICLES) {
+        particles.shift(); // remove oldest
+      }
+      particles.push(createParticle(clampedX, clampedY));
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Drawing helpers
+  // ──────────────────────────────────────────────
+  function drawStarfield(time) {
+    ctx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      // Twinkle via sine wave
+      const twinkle = 0.4 + 0.6 * Math.abs(Math.sin(time * 0.0012 * s.twinkleSpeed + s.phase));
+      const alpha = s.baseAlpha * twinkle;
+      const sx = s.x * canvas.width;
+      const sy = s.y * canvas.height;
+
+      ctx.beginPath();
+      ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, " + alpha.toFixed(3) + ")";
+      ctx.fill();
+    }
+  }
+
+  function drawParticles() {
+    ctx.globalCompositeOperation = "lighter";
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      if (p.age >= p.lifetime) continue;
+
+      const lifeProgress = p.age / p.lifetime;
+
+      // Fade & shrink in last 30% of lifetime
+      let alpha = 1;
+      let scale = 1;
+      if (lifeProgress > 0.7) {
+        const fade = (lifeProgress - 0.7) / 0.3; // 0..1
+        alpha = 1 - fade;
+        scale = 1 - fade * 0.7; // shrink to 30% of original
+      }
+
+      // Hue shifts slightly over lifetime (up to 40 degrees warmer)
+      const hueShift = lifeProgress * 40;
+      const displayHue = (p.hue + hueShift) % 360;
+
+      const r = p.size * scale;
+      const alphaStr = (alpha * 0.85).toFixed(3);
+
+      // Draw glow circle — two layers for soft appearance
+      // Outer glow (larger, more transparent)
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = "hsla(" + displayHue + ", 100%, 60%, " + (alpha * 0.15).toFixed(3) + ")";
+      ctx.fill();
+
+      // Inner bright core
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = "hsla(" + displayHue + ", 100%, 70%, " + alphaStr + ")";
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  // ──────────────────────────────────────────────
+  // Physics update
+  // ──────────────────────────────────────────────
+  function updatePhysics(dt) {
+    // dt is in seconds, clamped to avoid spiral-of-death
+    const clampedDt = Math.min(dt, 0.05);
+
+    // Pre-calculate drag factor for this frame
+    const dragFactor = Math.exp(-DRAG_COEFFICIENT * clampedDt);
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+
+      // Age the particle
+      p.age += clampedDt * 1000; // convert dt (seconds) to ms
+
+      // Remove dead particles
+      if (p.age >= p.lifetime) {
+        // Swap-remove for performance
+        particles[i] = particles[particles.length - 1];
+        particles.pop();
+        continue;
+      }
+
+      // Apply gravity
+      p.vy += gravity * clampedDt;
+
+      // Apply air friction / drag
+      p.vx *= dragFactor;
+      p.vy *= dragFactor;
+
+      // Integrate position
+      p.x += p.vx * clampedDt;
+      p.y += p.vy * clampedDt;
+
+      // ── Wall collisions ──
+      const r = p.size; // use base size for collision so bouncing feels consistent
+
+      // Floor
+      if (p.y + r > canvas.height) {
+        p.y = canvas.height - r;
+        p.vy = -Math.abs(p.vy) * BOUNCE_RESTITUTION;
+        // If velocity is very small, stop bouncing
+        if (Math.abs(p.vy) < 10) p.vy = 0;
+      }
+      // Ceiling
+      if (p.y - r < 0) {
+        p.y = r;
+        p.vy = Math.abs(p.vy) * BOUNCE_RESTITUTION;
+        if (Math.abs(p.vy) < 10) p.vy = 0;
+      }
+      // Right wall
+      if (p.x + r > canvas.width) {
+        p.x = canvas.width - r;
+        p.vx = -Math.abs(p.vx) * BOUNCE_RESTITUTION;
+        if (Math.abs(p.vx) < 10) p.vx = 0;
+      }
+      // Left wall
+      if (p.x - r < 0) {
+        p.x = r;
+        p.vx = Math.abs(p.vx) * BOUNCE_RESTITUTION;
+        if (Math.abs(p.vx) < 10) p.vx = 0;
+      }
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Auto-firework
+  // ──────────────────────────────────────────────
+  function updateAutoFirework(dt) {
+    if (!autoFirework) return;
+    autoFireworkTimer -= dt;
+    if (autoFireworkTimer <= 0) {
+      // Random interval between 1 and 2 seconds
+      autoFireworkTimer = 1 + Math.random() * 1;
+      const ax = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
+      const ay = Math.random() * canvas.height * 0.6 + canvas.height * 0.1;
+      burst(ax, ay, burstCount);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // UI updates
+  // ──────────────────────────────────────────────
+  function updateUI() {
+    elParticleCount.textContent = "粒子: " + particles.length;
+  }
+
+  function updateFPS(dt) {
+    frameCount++;
+    fpsAccumulator += dt;
+    // Update FPS display every 250ms
+    if (fpsAccumulator >= 0.25) {
+      currentFPS = Math.round(frameCount / fpsAccumulator);
+      elFpsDisplay.textContent = "FPS: " + currentFPS;
+      frameCount = 0;
+      fpsAccumulator = 0;
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Main render loop
+  // ──────────────────────────────────────────────
+  function render(timestamp) {
+    // Calculate deltaTime in seconds
+    if (lastTimestamp === 0) lastTimestamp = timestamp;
+    let dt = (timestamp - lastTimestamp) / 1000;
+    if (dt <= 0) dt = 0.016; // fallback ~60fps
+    lastTimestamp = timestamp;
+
+    // ── Motion blur / trail effect ──
+    // Draw a semi-transparent black rect over the whole canvas
+    // to fade previous frames, creating glowing trails
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "rgba(0, 0, 0, " + TRAIL_ALPHA + ")";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ── Starfield ──
+    drawStarfield(timestamp);
+
+    // ── Drag emit ──
+    if (mouseDown) {
+      dragAccumulator += DRAG_EMIT_RATE * dt;
+      while (dragAccumulator >= 1) {
+        dragAccumulator--;
+        if (particles.length < MAX_PARTICLES) {
+          particles.push(createParticle(
+            mouseX + (Math.random() - 0.5) * 4,
+            mouseY + (Math.random() - 0.5) * 4
+          ));
+        }
+      }
+    } else {
+      dragAccumulator = 0;
+    }
+
+    // ── Physics ──
+    updatePhysics(dt);
+
+    // ── Auto firework ──
+    updateAutoFirework(dt);
+
+    // ── Rainbow hue rotation ──
+    if (rainbowMode) {
+      rainbowHue = (rainbowHue + 60 * dt) % 360; // rotate 60° per second
+    }
+
+    // ── Draw particles (additive blending) ──
+    drawParticles();
+
+    // ── UI updates ──
+    updateUI();
+    updateFPS(dt);
+
+    requestAnimationFrame(render);
+  }
+
+  // ──────────────────────────────────────────────
+  // Input: Mouse
+  // ──────────────────────────────────────────────
+  canvas.addEventListener("mousedown", function (e) {
+    mouseDown = true;
+    mouseDownX = e.clientX;
+    mouseDownY = e.clientY;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    mouseMovedDuringPress = false;
+    dragAccumulator = 0;
+
+    // Double-click detection
+    const now = performance.now();
+    if (now - lastClickTime < DOUBLE_CLICK_WINDOW) {
+      // Double-click — mega burst (~400 particles)
+      burst(e.clientX, e.clientY, Math.round(burstCount * 3.3));
+      lastClickTime = 0; // reset to avoid triple-fire
+    } else {
+      lastClickTime = now;
+    }
+  });
+
+  canvas.addEventListener("mousemove", function (e) {
+    if (mouseDown) {
+      const dx = e.clientX - mouseDownX;
+      const dy = e.clientY - mouseDownY;
+      if (Math.abs(dx) > DRAG_DISTANCE_THRESHOLD || Math.abs(dy) > DRAG_DISTANCE_THRESHOLD) {
+        mouseMovedDuringPress = true;
+      }
+    }
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  canvas.addEventListener("mouseup", function (e) {
+    // Single click (no significant movement) — normal burst
+    if (mouseDown && !mouseMovedDuringPress) {
+      burst(e.clientX, e.clientY, burstCount);
+    }
+    mouseDown = false;
+    dragAccumulator = 0;
+    mouseMovedDuringPress = false;
+  });
+
+  canvas.addEventListener("mouseleave", function () {
+    mouseDown = false;
+    dragAccumulator = 0;
+    mouseMovedDuringPress = false;
+  });
+
+  // Prevent context menu on long-press (for touch)
+  canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  // ──────────────────────────────────────────────
+  // Input: Keyboard
+  // ──────────────────────────────────────────────
+  window.addEventListener("keydown", function (e) {
+    // Spacebar — mega burst at center
+    if (e.code === "Space" || e.key === " " || e.keyCode === 32) {
+      e.preventDefault();
+      burst(canvas.width / 2, canvas.height / 2, Math.round(burstCount * 3.3));
+    }
+    // 'R' key — toggle rainbow mode
+    if (e.code === "KeyR" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      rainbowMode = !rainbowMode;
+      chkRainbow.checked = rainbowMode;
+    }
+    // 'C' key — clear all
+    if (e.code === "KeyC" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Only clear if not focused on an input
+      if (document.activeElement === document.body || document.activeElement === canvas) {
+        particles.length = 0;
+      }
+    }
+  });
+
+  // ──────────────────────────────────────────────
+  // Input: Touch
+  // ──────────────────────────────────────────────
+  let lastTouchTime = 0;
+
+  canvas.addEventListener("touchstart", function (e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    mouseDown = true;
+    mouseDownX = touch.clientX;
+    mouseDownY = touch.clientY;
+    mouseX = touch.clientX;
+    mouseY = touch.clientY;
+    mouseMovedDuringPress = false;
+    dragAccumulator = 0;
+
+    // Double-tap detection
+    const now = performance.now();
+    if (now - lastTouchTime < DOUBLE_CLICK_WINDOW) {
+      burst(touch.clientX, touch.clientY, Math.round(burstCount * 3.3));
+      lastTouchTime = 0;
+    } else {
+      lastTouchTime = now;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", function (e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (mouseDown) {
+      const dx = touch.clientX - mouseDownX;
+      const dy = touch.clientY - mouseDownY;
+      if (Math.abs(dx) > DRAG_DISTANCE_THRESHOLD || Math.abs(dy) > DRAG_DISTANCE_THRESHOLD) {
+        mouseMovedDuringPress = true;
+      }
+    }
+    mouseX = touch.clientX;
+    mouseY = touch.clientY;
+  }, { passive: false });
+
+  canvas.addEventListener("touchend", function (e) {
+    e.preventDefault();
+    if (mouseDown && !mouseMovedDuringPress) {
+      // Tap (not drag) — normal burst
+      burst(mouseX, mouseY, burstCount);
+    }
+    mouseDown = false;
+    dragAccumulator = 0;
+    mouseMovedDuringPress = false;
+  }, { passive: false });
+
+  canvas.addEventListener("touchcancel", function () {
+    mouseDown = false;
+    dragAccumulator = 0;
+    mouseMovedDuringPress = false;
+  });
+
+  // ──────────────────────────────────────────────
+  // Keyboard shortcut hints (shown in console)
+  // ──────────────────────────────────────────────
+  console.log(
+    "%c🌌 宇宙大爆炸 — 粒子物理沙盒 %c已就绪\n" +
+    "%c点击%c = 粒子爆炸 | %c拖拽%c = 持续喷射 | %c双击%c = 超级爆炸\n" +
+    "%c空格键%c = 中心超级爆炸 | %cR键%c = 切换彩虹模式 | %cC键%c = 清除全部",
+    "font-size:16px;color:#ff9900;",
+    "",
+    "color:#ffcc00;", "", "color:#ffcc00;", "", "color:#ffcc00;", "",
+    "color:#ffcc00;", "", "color:#ffcc00;", "", "color:#ffcc00;", ""
+  );
+
+  // ──────────────────────────────────────────────
+  // Start the engine
+  // ──────────────────────────────────────────────
+  requestAnimationFrame(render);
+
+})();
+</script>
+</body>
+</html>

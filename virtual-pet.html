@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电子宠物 - 史莱姆蛋养成记</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐣</text></svg>">
+<style>
+  /* ========== RESET & BASE ========== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --accent: #0f3460;
+    --text: #e0e0e0;
+    --text-muted: #9a9abf;
+    --green: #4ade80;
+    --yellow: #facc15;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --pink: #f472b6;
+    --glow: 0 0 30px rgba(74, 222, 128, 0.25);
+    --radius: 16px;
+    --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 16px;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* ========== HOME LINK ========== */
+  .home-link {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    opacity: 0.6;
+    transition: opacity var(--transition);
+    z-index: 10;
+  }
+  .home-link:hover { opacity: 1; }
+
+  /* ========== MAIN CONTAINER ========== */
+  .container {
+    max-width: 480px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding-top: 32px;
+    padding-bottom: 24px;
+  }
+
+  /* ========== HEADER ========== */
+  .header { text-align: center; }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--green), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* ========== PET NAME ========== */
+  .pet-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 2px dashed transparent;
+    transition: all var(--transition);
+    text-align: center;
+    min-width: 80px;
+    background: rgba(255,255,255,0.03);
+  }
+  .pet-name:hover {
+    border-color: var(--text-muted);
+    background: rgba(255,255,255,0.06);
+  }
+  .pet-name-input {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    background: transparent;
+    border: 2px solid var(--green);
+    color: var(--text);
+    border-radius: 20px;
+    padding: 4px 12px;
+    outline: none;
+    width: 160px;
+    font-family: inherit;
+  }
+
+  /* ========== PET STAGE (slime or egg) ========== */
+  .pet-stage {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 0;
+  }
+
+  /* ---------- Slime ---------- */
+  .slime {
+    position: relative;
+    width: 140px;
+    height: 120px;
+    background: radial-gradient(ellipse at 50% 30%, #7ddf90, #4ade80 50%, #22c55e 100%);
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    box-shadow:
+      0 8px 32px rgba(74, 222, 128, 0.35),
+      inset 0 -8px 20px rgba(0,0,0,0.15),
+      inset 0 8px 16px rgba(255,255,255,0.25);
+    transition: background 1.5s ease, box-shadow 1.5s ease;
+    animation: jiggle 3s ease-in-out infinite;
+  }
+  /* color variants */
+  .slime.neutral  { background: radial-gradient(ellipse at 50% 30%, #7ddf90, #4ade80 50%, #22c55e 100%); }
+  .slime.hungry   { background: radial-gradient(ellipse at 50% 30%, #c5e07d, #a3c95a 50%, #8bb03e 100%); box-shadow: 0 8px 32px rgba(163,201,90,0.35), inset 0 -8px 20px rgba(0,0,0,0.15), inset 0 8px 16px rgba(255,255,255,0.2); }
+  .slime.dirty    { background: radial-gradient(ellipse at 50% 30%, #a0bda0, #7d9a7d 50%, #5c755c 100%); box-shadow: 0 8px 32px rgba(125,154,125,0.35), inset 0 -8px 20px rgba(0,0,0,0.15), inset 0 8px 16px rgba(255,255,255,0.15); }
+  .slime.sad      { background: radial-gradient(ellipse at 50% 30%, #c8dfc8, #a8c8a8 50%, #88a888 100%); box-shadow: 0 8px 32px rgba(168,200,168,0.3), inset 0 -8px 20px rgba(0,0,0,0.15), inset 0 8px 16px rgba(255,255,255,0.18); }
+  .slime.healthy  { background: radial-gradient(ellipse at 50% 30%, #7ddf90, #4ade80 50%, #22c55e 100%); box-shadow: 0 8px 32px rgba(74,222,128,0.45), inset 0 -8px 20px rgba(0,0,0,0.15), inset 0 8px 16px rgba(255,255,255,0.25); }
+
+  @keyframes jiggle {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    25%      { transform: scale(1.03) rotate(-1deg); }
+    75%      { transform: scale(1.02) rotate(1deg); }
+  }
+
+  /* bounce on action */
+  .slime.bounce {
+    animation: bounceAnim 0.5s ease-out;
+  }
+  @keyframes bounceAnim {
+    0%   { transform: scale(1) translateY(0); }
+    30%  { transform: scale(0.9) translateY(-20px); }
+    50%  { transform: scale(1.08) translateY(0); }
+    70%  { transform: scale(0.96) translateY(-6px); }
+    100% { transform: scale(1) translateY(0); }
+  }
+
+  /* glow pulse for hatching */
+  .slime.hatch-glow {
+    animation: hatchGlow 0.6s ease-in-out 3;
+  }
+  @keyframes hatchGlow {
+    0%, 100% { box-shadow: 0 8px 32px rgba(74,222,128,0.35), inset 0 -8px 20px rgba(0,0,0,0.15); filter: brightness(1); }
+    50%      { box-shadow: 0 0 60px rgba(255,255,255,0.9), 0 0 100px rgba(74,222,128,0.7); filter: brightness(2.5); }
+  }
+
+  /* ---------- Egg ---------- */
+  .egg {
+    position: relative;
+    width: 100px;
+    height: 130px;
+    background: radial-gradient(ellipse at 50% 35%, #f0fdf4, #bbf7d0 40%, #86efac 100%);
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    box-shadow: 0 8px 30px rgba(134,239,172,0.5), inset 0 -10px 20px rgba(0,0,0,0.1), inset 0 10px 16px rgba(255,255,255,0.4);
+  }
+  .egg.shake {
+    animation: eggShake 0.15s ease-in-out infinite;
+  }
+  @keyframes eggShake {
+    0%, 100% { transform: rotate(-5deg) translateX(-2px); }
+    50%      { transform: rotate(5deg) translateX(2px); }
+  }
+
+  /* crack overlay */
+  .egg-crack {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .egg-crack::before,
+  .egg-crack::after {
+    content: '';
+    position: absolute;
+    background: #1a1a2e;
+    border-radius: 50%;
+  }
+  .egg-crack::before {
+    width: 2px;
+    height: 40px;
+    top: 30%;
+    left: 48%;
+    transform: rotate(-10deg);
+    box-shadow: 1px 0 0 #1a1a2e;
+  }
+  .egg-crack::after {
+    width: 2px;
+    height: 30px;
+    top: 25%;
+    left: 55%;
+    transform: rotate(15deg);
+  }
+
+  /* ---------- Eyes & Mouth ---------- */
+  .eye {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: #1a1a2e;
+    border-radius: 50%;
+    top: 38%;
+    animation: blink 4s ease-in-out infinite;
+  }
+  .eye.left  { left: 28%; }
+  .eye.right { right: 28%; }
+  /* eye highlight */
+  .eye::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+  }
+  @keyframes blink {
+    0%, 45%, 55%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(0.05); }
+  }
+
+  /* mouth */
+  .mouth {
+    position: absolute;
+    bottom: 32%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 10px;
+    border-radius: 0 0 12px 12px;
+    border: 2.5px solid #1a1a2e;
+    border-top: none;
+    transition: all 0.5s ease;
+  }
+  /* expressions */
+  .mouth.happy   { width: 26px; height: 12px; border-radius: 0 0 14px 14px; }
+  .mouth.neutral { width: 16px; height: 4px; border-radius: 0 0 8px 8px; }
+  .mouth.sad     { width: 20px; height: 10px; border-radius: 12px 12px 0 0; border: 2.5px solid #1a1a2e; border-bottom: none; bottom: 30%; }
+  .mouth.dirty   { width: 18px; height: 6px; border-radius: 6px; border: 2.5px solid #1a1a2e; border-top: none; border-bottom: none; bottom: 30%; transform: translateX(-50%) rotate(-5deg); }
+
+  /* ---------- Flies (when dirty) ---------- */
+  .flies {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .fly {
+    position: absolute;
+    font-size: 16px;
+    animation: flyAround 2s ease-in-out infinite;
+  }
+  .fly:nth-child(1) { top: 5%; left: 5%; animation-delay: 0s; }
+  .fly:nth-child(2) { top: 10%; right: 5%; animation-delay: -0.7s; }
+  .fly:nth-child(3) { top: 40%; left: -8%; animation-delay: -1.3s; }
+  @keyframes flyAround {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    25%      { transform: translate(12px, -8px) rotate(10deg); }
+    50%      { transform: translate(-6px, -16px) rotate(-5deg); }
+    75%      { transform: translate(-10px, -4px) rotate(8deg); }
+  }
+
+  /* ---------- Sparkle overlay ---------- */
+  .sparkle-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+  }
+  .sparkle-overlay.active {
+    display: block;
+    animation: sparkleFlash 0.3s ease-out;
+  }
+  @keyframes sparkleFlash {
+    0%   { opacity: 1; transform: scale(0.8); }
+    100% { opacity: 0; transform: scale(1.5); }
+  }
+  .sparkle-overlay span {
+    position: absolute;
+    font-size: 20px;
+    animation: sparkleStar 0.8s ease-out forwards;
+  }
+  @keyframes sparkleStar {
+    0%   { opacity: 1; transform: translate(0, 0) scale(0); }
+    50%  { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0); }
+  }
+
+  /* ---------- Floating emoji particles (feed/play/bathe) ---------- */
+  .particle {
+    position: absolute;
+    font-size: 20px;
+    pointer-events: none;
+    z-index: 10;
+    animation: floatUp 1.2s ease-out forwards;
+  }
+  @keyframes floatUp {
+    0%   { opacity: 1; transform: translateY(0) scale(0.5) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1.3) rotate(20deg); }
+  }
+
+  /* ---------- Hatched animal reveal ---------- */
+  .hatched-animal {
+    font-size: 64px;
+    animation: revealAnimal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes revealAnimal {
+    0%   { transform: scale(0) rotate(-30deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  .hatch-result {
+    text-align: center;
+    animation: fadeInUp 0.5s ease-out;
+  }
+  @keyframes fadeInUp {
+    0%   { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .hatch-result .emoji  { font-size: 72px; display: block; margin-bottom: 8px; }
+  .hatch-result .msg    { font-size: 20px; font-weight: 700; color: var(--green); }
+  .hatch-result .submsg { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ========== STAT BARS ========== */
+  .stats {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 8px;
+  }
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .stat-label {
+    font-size: 14px;
+    white-space: nowrap;
+    min-width: 70px;
+    text-align: right;
+    color: var(--text-muted);
+  }
+  .stat-bar-outer {
+    flex: 1;
+    height: 14px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+  }
+  .stat-bar-inner {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.4s ease;
+  }
+  .stat-bar-inner.hunger   { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+  .stat-bar-inner.happiness { background: linear-gradient(90deg, #f472b6, #ec4899); }
+  .stat-bar-inner.clean    { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+  /* low stat pulse */
+  .stat-bar-outer.critical .stat-bar-inner { animation: barPulse 0.8s ease-in-out infinite; }
+  @keyframes barPulse {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.6); }
+  }
+  .stat-value {
+    font-size: 12px;
+    min-width: 30px;
+    text-align: left;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* ========== ACTIONS ========== */
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    padding: 0 8px;
+  }
+  .action-btn {
+    flex: 1;
+    min-width: 90px;
+    max-width: 130px;
+    padding: 12px 8px;
+    border-radius: var(--radius);
+    border: 2px solid rgba(255,255,255,0.1);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all var(--transition);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .action-btn:hover:not(:disabled) {
+    border-color: rgba(255,255,255,0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+  .action-btn:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .action-btn .btn-emoji { font-size: 22px; }
+  .action-btn .btn-label { font-size: 12px; }
+  .action-btn .cooldown-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 0 2px 0 0;
+    transition: width 0.1s linear;
+    pointer-events: none;
+  }
+  .btn-feed  { --accent-btn: #f59e0b; }
+  .btn-play  { --accent-btn: #ec4899; }
+  .btn-bathe { --accent-btn: #3b82f6; }
+  .btn-feed:hover:not(:disabled)  { border-color: var(--accent-btn); }
+  .btn-play:hover:not(:disabled)  { border-color: var(--accent-btn); }
+  .btn-bathe:hover:not(:disabled) { border-color: var(--accent-btn); }
+
+  /* ========== COLLECTION GALLERY ========== */
+  .gallery-section {
+    width: 100%;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+  }
+  .gallery-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .gallery-count {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .gallery-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    min-height: 40px;
+    align-items: center;
+  }
+  .gallery-item {
+    font-size: 32px;
+    padding: 4px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    transition: transform var(--transition);
+  }
+  .gallery-item:hover { transform: scale(1.2); }
+  .gallery-item.locked {
+    filter: grayscale(1);
+    opacity: 0.3;
+  }
+  .gallery-master {
+    font-size: 16px;
+    font-weight: 700;
+    color: #facc15;
+    margin-top: 8px;
+    animation: fadeInUp 0.6s ease-out;
+  }
+
+  /* ========== LOG ========== */
+  .log-panel {
+    width: 100%;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    max-height: 160px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  .log-panel::-webkit-scrollbar { width: 4px; }
+  .log-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+  .log-entry {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    line-height: 1.4;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry .ts { color: rgba(255,255,255,0.3); margin-right: 6px; font-size: 11px; }
+
+  /* ========== RESET BUTTON ========== */
+  .reset-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-muted);
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    transition: all var(--transition);
+    margin-top: 4px;
+  }
+  .reset-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 400px) {
+    .container { padding-top: 24px; gap: 12px; }
+    .header h1 { font-size: 22px; }
+    .pet-stage { width: 150px; height: 150px; }
+    .slime { width: 110px; height: 95px; }
+    .egg   { width: 80px; height: 105px; }
+    .eye { width: 13px; height: 13px; }
+    .eye.left  { left: 26%; }
+    .eye.right { right: 26%; }
+    .eye::after { width: 5px; height: 5px; top: 2px; left: 2px; }
+    .mouth { width: 20px; height: 8px; }
+    .action-btn { padding: 10px 6px; font-size: 12px; }
+    .action-btn .btn-emoji { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="home-link" href="index.html">🏠 首页</a>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>🐣 电子宠物</h1>
+    <p class="subtitle">史莱姆蛋养成记</p>
+  </div>
+
+  <!-- Pet name (editable) -->
+  <div id="petNameDisplay" class="pet-name" title="点击改名">小绿</div>
+
+  <!-- Pet visual area -->
+  <div class="pet-stage" id="petStage">
+    <!-- Slime -->
+    <div class="slime neutral" id="slime">
+      <div class="eye left"></div>
+      <div class="eye right"></div>
+      <div class="mouth neutral" id="mouth"></div>
+      <div class="flies" id="flies">
+        <span class="fly">🪰</span>
+        <span class="fly">🪰</span>
+        <span class="fly">🪰</span>
+      </div>
+    </div>
+    <!-- Hatched result (hidden until hatch) -->
+    <div class="hatch-result" id="hatchResult" style="display:none;">
+      <span class="emoji" id="hatchEmoji"></span>
+      <p class="msg" id="hatchMsg"></p>
+      <p class="submsg" id="hatchSubmsg"></p>
+    </div>
+    <!-- Sparkle overlay -->
+    <div class="sparkle-overlay" id="sparkleOverlay"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats" id="statsPanel">
+    <!-- Stat rows generated by JS -->
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="action-btn btn-feed" id="btnFeed" onclick="doAction('feed')">
+      <span class="btn-emoji">🍕</span>
+      <span class="btn-label">喂食</span>
+      <div class="cooldown-overlay" style="width:0%"></div>
+    </button>
+    <button class="action-btn btn-play" id="btnPlay" onclick="doAction('play')">
+      <span class="btn-emoji">⚽</span>
+      <span class="btn-label">玩耍</span>
+      <div class="cooldown-overlay" style="width:0%"></div>
+    </button>
+    <button class="action-btn btn-bathe" id="btnBathe" onclick="doAction('bathe')">
+      <span class="btn-emoji">🛁</span>
+      <span class="btn-label">洗澡</span>
+      <div class="cooldown-overlay" style="width:0%"></div>
+    </button>
+  </div>
+
+  <!-- Collection Gallery -->
+  <div class="gallery-section">
+    <div class="gallery-title">🏆 宠物图鉴</div>
+    <div class="gallery-count" id="galleryCount">已收集: 0/14</div>
+    <div class="gallery-grid" id="galleryGrid">
+      <!-- Filled by JS -->
+    </div>
+    <div class="gallery-master" id="galleryMaster" style="display:none;"></div>
+  </div>
+
+  <!-- Log panel -->
+  <div class="log-panel" id="logPanel">
+    <!-- Filled by JS -->
+  </div>
+
+  <!-- Reset button -->
+  <button class="reset-btn" onclick="resetGame()">🔄 重新开始</button>
+
+</div>
+
+<script>
+/* ======================== VIRTUAL PET ENGINE ======================== */
+
+// ---------- Constants ----------
+const DECAY_INTERVAL_SEC = 60;          // Decay every 60 seconds
+const DECAY_MIN = 2;
+const DECAY_MAX = 5;
+const ACTION_COOLDOWN_MS = 3000;        // 3 second cooldown
+const ACTION_MIN_GAIN = 15;
+const ACTION_MAX_GAIN = 25;
+const MAX_LOG_ENTRIES = 20;
+const ALL_ANIMALS = ['🐱','🐶','🐰','🐼','🐨','🐸','🦊','🐯','🐮','🐷','🐥','🦄','🐢','🐙'];
+
+// ---------- State (loaded from localStorage) ----------
+let state = {
+  petName: '小绿',
+  stats: { hunger: 70, happiness: 70, cleanliness: 70 },
+  lastUpdate: Date.now(),
+  collected: [],           // Array of animal emoji strings
+  log: [],                 // Array of log entry strings
+  cooldowns: { feed: 0, play: 0, bathe: 0 },
+  isHatching: false,
+};
+
+// ---------- DOM refs ----------
+const $slime         = document.getElementById('slime');
+const $mouth         = document.getElementById('mouth');
+const $flies         = document.getElementById('flies');
+const $petStage      = document.getElementById('petStage');
+const $petNameDisp   = document.getElementById('petNameDisplay');
+const $hatchResult   = document.getElementById('hatchResult');
+const $hatchEmoji    = document.getElementById('hatchEmoji');
+const $hatchMsg      = document.getElementById('hatchMsg');
+const $hatchSubmsg   = document.getElementById('hatchSubmsg');
+const $sparkleOv     = document.getElementById('sparkleOverlay');
+const $statsPanel    = document.getElementById('statsPanel');
+const $logPanel      = document.getElementById('logPanel');
+const $galleryGrid   = document.getElementById('galleryGrid');
+const $galleryCount  = document.getElementById('galleryCount');
+const $galleryMaster = document.getElementById('galleryMaster');
+const $btnFeed       = document.getElementById('btnFeed');
+const $btnPlay       = document.getElementById('btnPlay');
+const $btnBathe      = document.getElementById('btnBathe');
+
+/* ======================== INITIALIZATION ======================== */
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('virtualPetState');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      state = { ...state, ...saved };
+      // Ensure cooldowns exist
+      if (!state.cooldowns) state.cooldowns = { feed: 0, play: 0, bathe: 0 };
+      if (!state.collected) state.collected = [];
+      if (!state.log) state.log = [];
+      if (!state.isHatching) state.isHatching = false;
+    }
+  } catch (e) {
+    console.warn('Failed to load state, using defaults:', e);
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem('virtualPetState', JSON.stringify(state));
+  } catch (e) {
+    console.warn('Failed to save state:', e);
+  }
+}
+
+/** Calculate and apply offline decay on page load */
+function applyOfflineDecay() {
+  const now = Date.now();
+  const elapsedMs = now - state.lastUpdate;
+  if (elapsedMs <= 0) return;
+
+  const elapsedMinutes = Math.floor(elapsedMs / (DECAY_INTERVAL_SEC * 1000));
+  if (elapsedMinutes <= 0) { state.lastUpdate = now; return; }
+
+  // Apply random decay for each elapsed minute
+  let totalDecay = { hunger: 0, happiness: 0, cleanliness: 0 };
+  for (let i = 0; i < elapsedMinutes; i++) {
+    totalDecay.hunger     += randInt(DECAY_MIN, DECAY_MAX);
+    totalDecay.happiness  += randInt(DECAY_MIN, DECAY_MAX);
+    totalDecay.cleanliness += randInt(DECAY_MIN, DECAY_MAX);
+  }
+
+  // Clamp totals
+  const oldStats = { ...state.stats };
+  state.stats.hunger     = Math.max(0, state.stats.hunger - totalDecay.hunger);
+  state.stats.happiness  = Math.max(0, state.stats.happiness - totalDecay.happiness);
+  state.stats.cleanliness = Math.max(0, state.stats.cleanliness - totalDecay.cleanliness);
+
+  // Log offline decay (summary)
+  if (elapsedMinutes > 0 && (totalDecay.hunger > 0 || totalDecay.happiness > 0 || totalDecay.cleanliness > 0)) {
+    addLog(`⏰ 你离开了${elapsedMinutes}分钟，宠物状态下降了……`);
+  }
+
+  state.lastUpdate = now;
+  saveState();
+}
+
+/* ======================== LOGGING ======================== */
+
+function addLog(msg) {
+  const now = new Date();
+  const ts = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  const entry = `<span class="ts">${ts}</span>${msg}`;
+  state.log.push(entry);
+  if (state.log.length > MAX_LOG_ENTRIES) state.log.shift();
+  renderLog();
+}
+
+function renderLog() {
+  $logPanel.innerHTML = state.log.length === 0
+    ? '<div class="log-entry" style="color:rgba(255,255,255,0.2);">暂无日志</div>'
+    : state.log.map(e => `<div class="log-entry">${e}</div>`).join('');
+  $logPanel.scrollTop = $logPanel.scrollHeight;
+}
+
+/* ======================== STAT BARS RENDER ======================== */
+
+const statDefs = [
+  { key: 'hunger',     label: '🍔 饱腹度',   cls: 'hunger' },
+  { key: 'happiness',  label: '😊 快乐值',   cls: 'happiness' },
+  { key: 'cleanliness', label: '🧹 清洁度',  cls: 'clean' },
+];
+
+function renderStats() {
+  $statsPanel.innerHTML = statDefs.map(def => {
+    const val = state.stats[def.key];
+    const critical = val < 30 ? ' critical' : '';
+    return `
+      <div class="stat-row">
+        <span class="stat-label">${def.label}</span>
+        <div class="stat-bar-outer${critical}">
+          <div class="stat-bar-inner ${def.cls}" style="width:${val}%"></div>
+        </div>
+        <span class="stat-value">${val}</span>
+      </div>`;
+  }).join('');
+}
+
+/* ======================== PET VISUAL UPDATE ======================== */
+
+function updatePetAppearance() {
+  const h = state.stats.hunger;
+  const p = state.stats.happiness;
+  const c = state.stats.cleanliness;
+
+  // ---- Determine slime color class ----
+  $slime.classList.remove('neutral', 'hungry', 'dirty', 'sad', 'healthy');
+
+  if (c < 30) {
+    $slime.classList.add('dirty');
+  } else if (h < 30) {
+    $slime.classList.add('hungry');
+  } else if (p < 30) {
+    $slime.classList.add('sad');
+  } else if (h >= 80 && p >= 80 && c >= 80) {
+    $slime.classList.add('healthy');
+  } else {
+    $slime.classList.add('neutral');
+  }
+
+  // ---- Mouth expression ----
+  $mouth.classList.remove('happy', 'neutral', 'sad', 'dirty');
+  if (c < 30) {
+    $mouth.classList.add('dirty');
+  } else if (h < 30) {
+    $mouth.classList.add('sad');
+  } else if (p < 30) {
+    $mouth.classList.add('sad');
+  } else if (h >= 70 && p >= 70 && c >= 70) {
+    $mouth.classList.add('happy');
+  } else if (h >= 50 && p >= 50 && c >= 50) {
+    $mouth.classList.add('neutral');
+  } else {
+    $mouth.classList.add('sad');
+  }
+
+  // ---- Flies visibility (when dirty) ----
+  $flies.style.display = c < 30 ? 'block' : 'none';
+
+  // ---- Low-stat warnings ----
+  if (h < 30 && h > 0) addLogOnce('hunger_warn', '😢 史莱姆看起来很饿……');
+  if (p < 30 && p > 0) addLogOnce('happy_warn', '😔 史莱姆看起来很无聊……');
+  if (c < 30 && c > 0) addLogOnce('clean_warn', '💩 史莱姆脏兮兮的……');
+
+  // Check for hatching condition
+  if (!state.isHatching && h >= 100 && p >= 100 && c >= 100) {
+    startHatchSequence();
+  }
+}
+
+// Prevent duplicate warning logs (simple dedup via a Set held in closure)
+const warnedLogs = new Set();
+function addLogOnce(key, msg) {
+  if (!warnedLogs.has(key)) {
+    warnedLogs.add(key);
+    addLog(msg);
+  }
+}
+// Clear warnings when stats recover
+function clearWarnings() {
+  const h = state.stats.hunger;
+  const p = state.stats.happiness;
+  const c = state.stats.cleanliness;
+  if (h >= 30) warnedLogs.delete('hunger_warn');
+  if (p >= 30) warnedLogs.delete('happy_warn');
+  if (c >= 30) warnedLogs.delete('clean_warn');
+}
+
+/* ======================== ACTIONS ======================== */
+
+const cooldownTimers = { feed: null, play: null, bathe: null };
+
+function doAction(type) {
+  if (state.isHatching) return;
+
+  const now = Date.now();
+
+  // Check cooldown
+  if (state.cooldowns[type] > now) return;
+
+  // Set cooldown
+  const cooldownEnd = now + ACTION_COOLDOWN_MS;
+  state.cooldowns[type] = cooldownEnd;
+  saveState();
+
+  // Update button UI for cooldown
+  const btnMap = { feed: $btnFeed, play: $btnPlay, bathe: $btnBathe };
+  const btn = btnMap[type];
+  btn.disabled = true;
+  startCooldownUI(type, now);
+
+  // Apply stat gain
+  const gain = randInt(ACTION_MIN_GAIN, ACTION_MAX_GAIN);
+  const keyMap = { feed: 'hunger', play: 'happiness', bathe: 'cleanliness' };
+  const statKey = keyMap[type];
+  const oldVal = state.stats[statKey];
+  state.stats[statKey] = Math.min(100, oldVal + gain);
+
+  // Emoji for particles
+  const emojiMap = { feed: '🍕', play: '⚽', bathe: '✨' };
+  const labelMap = { feed: '喂食', play: '玩耍', bathe: '洗澡' };
+  const statLabelMap = { hunger: '饱腹度', happiness: '快乐值', cleanliness: '清洁度' };
+
+  // Bounce the slime
+  $slime.classList.remove('bounce');
+  void $slime.offsetWidth; // force reflow
+  $slime.classList.add('bounce');
+  setTimeout(() => $slime.classList.remove('bounce'), 600);
+
+  // Emit floating particles
+  spawnParticles(emojiMap[type], 5);
+
+  // Log
+  addLog(`${emojiMap[type]} 你${labelMap[type]}了史莱姆！${statLabelMap[statKey]}+${gain}`);
+
+  // Clear warnings if stat recovered
+  clearWarnings();
+
+  // Update
+  updatePetAppearance();
+  renderStats();
+  saveState();
+}
+
+function startCooldownUI(type, startTime) {
+  const btnMap = { feed: $btnFeed, play: $btnPlay, bathe: $btnBathe };
+  const btn = btnMap[type];
+  const overlay = btn.querySelector('.cooldown-overlay');
+
+  const tick = () => {
+    const now = Date.now();
+    const remaining = state.cooldowns[type] - now;
+    if (remaining <= 0) {
+      // Done
+      overlay.style.width = '0%';
+      btn.disabled = false;
+      return;
+    }
+    const progress = ((ACTION_COOLDOWN_MS - remaining) / ACTION_COOLDOWN_MS) * 100;
+    overlay.style.width = progress + '%';
+    cooldownTimers[type] = requestAnimationFrame(tick);
+  };
+
+  if (cooldownTimers[type]) cancelAnimationFrame(cooldownTimers[type]);
+  cooldownTimers[type] = requestAnimationFrame(tick);
+}
+
+/** Spawn floating emoji particles around the slime */
+function spawnParticles(emoji, count) {
+  const rect = $petStage.getBoundingClientRect();
+  const cx = rect.width / 2;
+  const cy = rect.height / 2;
+
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span');
+    p.className = 'particle';
+    p.textContent = emoji;
+    p.style.left = (cx + randInt(-30, 30)) + 'px';
+    p.style.top  = (cy + randInt(-10, 20)) + 'px';
+    p.style.animationDuration = (0.8 + Math.random() * 0.8) + 's';
+    p.style.animationDelay = Math.random() * 0.15 + 's';
+    $petStage.appendChild(p);
+
+    // Remove after animation
+    setTimeout(() => p.remove(), 1600);
+  }
+}
+
+/* ======================== HATCH SEQUENCE ======================== */
+
+async function startHatchSequence() {
+  state.isHatching = true;
+  saveState();
+  addLog('🥚 所有状态达到满值！史莱姆开始发光……');
+
+  // 1. Glow pulse 3 times
+  $slime.classList.add('hatch-glow');
+  await sleep(1800); // 3 x 0.6s
+
+  // 2. Transform into egg
+  $slime.style.display = 'none';
+  const egg = document.createElement('div');
+  egg.className = 'egg';
+  egg.id = 'tempEgg';
+  $petStage.insertBefore(egg, $hatchResult);
+
+  addLog('🥚 史莱姆变成了蛋！');
+
+  await sleep(800);
+
+  // 3. Egg shakes
+  egg.classList.add('shake');
+  addLog('🥚 蛋在震动……要孵化了！');
+  await sleep(2000);
+
+  // 4. Crack + sparkle
+  egg.classList.remove('shake');
+
+  // Add crack lines
+  const crack = document.createElement('div');
+  crack.className = 'egg-crack';
+  egg.appendChild(crack);
+
+  showSparkles();
+
+  await sleep(500);
+
+  // 5. Reveal animal
+  egg.style.display = 'none';
+  const animal = ALL_ANIMALS[Math.floor(Math.random() * ALL_ANIMALS.length)];
+
+  $hatchEmoji.textContent = animal;
+  $hatchMsg.textContent = '🎉 你是个称职的铲屎官！';
+  $hatchSubmsg.textContent = `恭喜孵化出 ${animal}！`;
+  $hatchResult.style.display = 'block';
+  $hatchResult.querySelector('.emoji').classList.add('hatched-animal');
+
+  // Record in collection
+  if (!state.collected.includes(animal)) {
+    state.collected.push(animal);
+    addLog(`🏆 新动物解锁：${animal}！`);
+  }
+  renderGallery();
+
+  addLog('🎉 恭喜！成功孵化了一只可爱的小动物！');
+
+  await sleep(3000);
+
+  // 6. Reset
+  $hatchResult.style.display = 'none';
+  if (document.getElementById('tempEgg')) {
+    document.getElementById('tempEgg').remove();
+  }
+  $slime.style.display = '';
+  $slime.classList.remove('hatch-glow');
+
+  state.stats = { hunger: 50, happiness: 50, cleanliness: 50 };
+  state.isHatching = false;
+  state.lastUpdate = Date.now();
+  addLog('🔄 新的史莱姆出现了！继续加油~');
+  updatePetAppearance();
+  renderStats();
+  saveState();
+}
+
+function showSparkles() {
+  $sparkleOv.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const star = document.createElement('span');
+    star.textContent = '✨';
+    star.style.position = 'absolute';
+    star.style.left = randInt(20, 70) + '%';
+    star.style.top = randInt(20, 70) + '%';
+    star.style.setProperty('--sx', randInt(-40, 40) + 'px');
+    star.style.setProperty('--sy', randInt(-40, 40) + 'px');
+    $sparkleOv.appendChild(star);
+  }
+  $sparkleOv.classList.add('active');
+  setTimeout(() => {
+    $sparkleOv.classList.remove('active');
+    $sparkleOv.innerHTML = '';
+  }, 900);
+}
+
+/* ======================== COLLECTION GALLERY ======================== */
+
+function renderGallery() {
+  const collected = state.collected;
+  $galleryCount.textContent = `已收集: ${collected.length}/${ALL_ANIMALS.length}`;
+
+  $galleryGrid.innerHTML = ALL_ANIMALS.map(a => {
+    const owned = collected.includes(a);
+    return `<span class="gallery-item${owned ? '' : ' locked'}">${owned ? a : '❓'}</span>`;
+  }).join('');
+
+  if (collected.length >= ALL_ANIMALS.length) {
+    $galleryMaster.style.display = 'block';
+    $galleryMaster.textContent = '🏆 宠物大师！全收集达成！';
+  } else {
+    $galleryMaster.style.display = 'none';
+  }
+}
+
+/* ======================== PET NAME EDITING ======================== */
+
+function setupPetNameEditing() {
+  $petNameDisp.addEventListener('click', () => {
+    if (state.isHatching) return;
+
+    const current = state.petName;
+    // Replace with input
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'pet-name-input';
+    input.value = current;
+    input.maxLength = 10;
+    $petNameDisp.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const newName = input.value.trim() || current;
+      state.petName = newName;
+      saveState();
+      const newDisp = document.createElement('div');
+      newDisp.className = 'pet-name';
+      newDisp.id = 'petNameDisplay';
+      newDisp.title = '点击改名';
+      newDisp.textContent = newName;
+      input.replaceWith(newDisp);
+      setupPetNameEditing(); // re-bind
+      addLog(`✏️ 宠物改名为"${newName}"`);
+    };
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') commit();
+      if (e.key === 'Escape') {
+        input.value = current;
+        commit();
+      }
+    });
+  });
+}
+
+/* ======================== PERIODIC DECAY ======================== */
+
+function applyDecay(proportional = true) {
+  if (state.isHatching) return;
+
+  const decay = {};
+  if (proportional) {
+    decay.hunger     = randInt(DECAY_MIN, DECAY_MAX);
+    decay.happiness  = randInt(DECAY_MIN, DECAY_MAX);
+    decay.cleanliness = randInt(DECAY_MIN, DECAY_MAX);
+  }
+
+  const oldHunger = state.stats.hunger;
+  const oldHappiness = state.stats.happiness;
+  const oldCleanliness = state.stats.cleanliness;
+
+  state.stats.hunger     = Math.max(0, oldHunger - decay.hunger);
+  state.stats.happiness  = Math.max(0, oldHappiness - decay.happiness);
+  state.stats.cleanliness = Math.max(0, oldCleanliness - decay.cleanliness);
+
+  const dH = oldHunger - state.stats.hunger;
+  const dP = oldHappiness - state.stats.happiness;
+  const dC = oldCleanliness - state.stats.cleanliness;
+
+  if (dH > 0) addLog(`🕐 过去1分钟，饱腹度下降了${dH}点`);
+  if (dP > 0) addLog(`🕐 过去1分钟，快乐值下降了${dP}点`);
+  if (dC > 0) addLog(`🕐 过去1分钟，清洁度下降了${dC}点`);
+
+  clearWarnings();
+  updatePetAppearance();
+  renderStats();
+  state.lastUpdate = Date.now();
+  saveState();
+}
+
+/* ======================== RESET ======================== */
+
+function resetGame() {
+  if (!confirm('确定要重新开始吗？宠物图鉴会保留，其他数据将重置。')) return;
+
+  state.stats = { hunger: 70, happiness: 70, cleanliness: 70 };
+  state.petName = '小绿';
+  state.lastUpdate = Date.now();
+  state.log = [];
+  state.cooldowns = { feed: 0, play: 0, bathe: 0 };
+  state.isHatching = false;
+  warnedLogs.clear();
+
+  // Reset UI
+  $slime.style.display = '';
+  $slime.classList.remove('hatch-glow', 'bounce', 'hungry', 'dirty', 'sad', 'healthy');
+  $slime.classList.add('neutral');
+  $mouth.classList.remove('happy', 'sad', 'dirty');
+  $mouth.classList.add('neutral');
+  $flies.style.display = 'none';
+  $hatchResult.style.display = 'none';
+  const tempEgg = document.getElementById('tempEgg');
+  if (tempEgg) tempEgg.remove();
+
+  $petNameDisp.textContent = '小绿';
+
+  // Reset button cooldowns
+  [$btnFeed, $btnPlay, $btnBathe].forEach(b => { b.disabled = false; b.querySelector('.cooldown-overlay').style.width = '0%'; });
+  Object.values(cooldownTimers).forEach(t => t && cancelAnimationFrame(t));
+
+  updatePetAppearance();
+  renderStats();
+  renderLog();
+  saveState();
+  addLog('🔄 游戏已重置，新的史莱姆出现了！');
+}
+
+/* ======================== UTILITIES ======================== */
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/* ======================== BOOTSTRAP ======================== */
+
+function init() {
+  loadState();
+
+  // Render initial UI
+  $petNameDisp.textContent = state.petName;
+  setupPetNameEditing();
+  renderStats();
+  renderLog();
+  renderGallery();
+  updatePetAppearance();
+
+  // Apply offline decay (catches up from last session)
+  applyOfflineDecay();
+  // Re-render after offline decay
+  renderStats();
+  updatePetAppearance();
+
+  // Clear any stale cooldowns (if cooldown expired while page was closed)
+  const now = Date.now();
+  if (state.cooldowns.feed > now) startCooldownUI('feed', state.cooldowns.feed - ACTION_COOLDOWN_MS);
+  if (state.cooldowns.play > now) startCooldownUI('play', state.cooldowns.play - ACTION_COOLDOWN_MS);
+  if (state.cooldowns.bathe > now) startCooldownUI('bathe', state.cooldowns.bathe - ACTION_COOLDOWN_MS);
+
+  // Start the per-minute decay interval
+  setInterval(() => applyDecay(true), DECAY_INTERVAL_SEC * 1000);
+
+  addLog('🐣 你的史莱姆蛋出现了！好好照顾它吧~');
+  saveState();
+}
+
+// Run
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

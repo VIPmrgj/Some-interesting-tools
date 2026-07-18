@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑客帝国·装逼模拟器</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💻</text></svg>">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Consolas', 'Courier New', 'Lucida Console', monospace;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ---- Canvas (Matrix Rain) ---- */
+  #matrixCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+  }
+
+  /* ---- CRT Scanline Overlay ---- */
+  #crtOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    animation: scanlineDrift 0.1s linear infinite;
+  }
+  @keyframes scanlineDrift {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 4px; }
+  }
+
+  /* ---- Hacking Messages Container ---- */
+  #messagesContainer {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 80%;
+    max-width: 700px;
+  }
+  .hack-message {
+    color: #fff;
+    font-size: 15px;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+    white-space: nowrap;
+    opacity: 1;
+    transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    animation: msgFadeIn 0.1s ease-out;
+  }
+  .hack-message.fading {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  @keyframes msgFadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---- Progress Bar Area ---- */
+  #progressArea {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    pointer-events: none;
+    color: #0f0;
+    font-size: 16px;
+    text-align: center;
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+  }
+  #progressLabel {
+    margin-bottom: 6px;
+  }
+  #progressBarOuter {
+    width: 420px;
+    max-width: 80vw;
+    height: 18px;
+    border: 1px solid #0f0;
+    background: rgba(0, 0, 0, 0.7);
+    margin: 0 auto;
+    position: relative;
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+  }
+  #progressBarInner {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #003300, #00ff41, #0f0);
+    transition: width 0.15s linear;
+    box-shadow: 0 0 12px rgba(0, 255, 65, 0.6);
+  }
+
+  /* ---- Stats Display ---- */
+  #statsDisplay {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 4;
+    pointer-events: none;
+    color: #0f0;
+    font-size: 13px;
+    line-height: 1.7;
+    text-align: right;
+    text-shadow: 0 0 4px rgba(0, 255, 65, 0.5);
+    opacity: 0.85;
+  }
+
+  /* ---- Top-left Home Link ---- */
+  #homeLink {
+    position: fixed;
+    top: 12px;
+    left: 16px;
+    z-index: 4;
+    color: rgba(0, 255, 65, 0.5);
+    font-size: 13px;
+    text-decoration: none;
+    text-shadow: 0 0 4px rgba(0, 255, 65, 0.3);
+    transition: color 0.3s;
+  }
+  #homeLink:hover {
+    color: #0f0;
+  }
+
+  /* ---- Special Effects Overlay (for red flash, crack, large text) ---- */
+  #fxOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .fx-big-text {
+    font-size: clamp(24px, 5vw, 42px);
+    font-weight: bold;
+    text-align: center;
+    color: #ff0000;
+    text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+    animation: fxPulse 0.5s ease-in-out infinite alternate;
+    margin-bottom: 12px;
+  }
+  .fx-subtitle {
+    font-size: clamp(16px, 3vw, 24px);
+    color: #ff4444;
+    text-shadow: 0 0 10px #ff0000;
+  }
+  /* Red flash for sudo */
+  .fx-red-flash {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255, 0, 0, 0.15);
+    animation: redFlash 0.15s ease-out;
+  }
+  @keyframes redFlash {
+    from { background: rgba(255, 0, 0, 0.3); }
+    to   { background: transparent; }
+  }
+  @keyframes fxPulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.05); }
+  }
+
+  /* ---- ASCII Cat ---- */
+  #asciiCat {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    z-index: 4;
+    pointer-events: none;
+    color: #0f0;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: pre;
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  #asciiCat.show {
+    opacity: 1;
+  }
+
+  /* ---- Crack Overlay ---- */
+  #crackOverlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 6;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  #crackOverlay.show {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- Matrix Rain Canvas -->
+<canvas id="matrixCanvas"></canvas>
+
+<!-- CRT Scanline -->
+<div id="crtOverlay"></div>
+
+<!-- Hacking Messages -->
+<div id="messagesContainer"></div>
+
+<!-- Progress Bar -->
+<div id="progressArea">
+  <div id="progressLabel">破解进度: <span id="progressPercent">0</span>%</div>
+  <div id="progressBarOuter">
+    <div id="progressBarInner"></div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div id="statsDisplay">
+  <div>入侵次数: <span id="statCompletions">0</span></div>
+  <div>击键数: <span id="statKeystrokes">0</span></div>
+  <div>进度: <span id="statProgress">0</span>%</div>
+</div>
+
+<!-- Home Link -->
+<a id="homeLink" href="index.html">🏠 首页</a>
+
+<!-- Special FX Overlay -->
+<div id="fxOverlay"></div>
+
+<!-- ASCII Cat (white-space: pre preserves the line breaks) -->
+<div id="asciiCat"> /\_/\
+( o.o )
+ > ^ &lt;</div>
+
+<!-- Crack / Fracture Overlay (canvas) -->
+<canvas id="crackOverlay"></canvas>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========== DOM REFS ==========
+  const matrixCanvas = document.getElementById('matrixCanvas');
+  const matrixCtx = matrixCanvas.getContext('2d');
+  const messagesContainer = document.getElementById('messagesContainer');
+  const progressBarInner = document.getElementById('progressBarInner');
+  const progressPercentEl = document.getElementById('progressPercent');
+  const statCompletionsEl = document.getElementById('statCompletions');
+  const statKeystrokesEl = document.getElementById('statKeystrokes');
+  const statProgressEl = document.getElementById('statProgress');
+  const fxOverlay = document.getElementById('fxOverlay');
+  const asciiCat = document.getElementById('asciiCat');
+  const crackOverlay = document.getElementById('crackOverlay');
+  const crackCtx = crackOverlay.getContext('2d');
+
+  // ========== STATE ==========
+  let progress = 0;                    // 0-100
+  let keystrokeCount = 0;             // this session
+  let sessionCompletions = 0;         // this session
+  let totalCompletions = 0;           // from localStorage + session
+  let keyBuffer = '';                 // rolling buffer of last ~30 chars
+  let isComplete = false;             // prevents input during completion animation
+  let audioCtx = null;               // lazy AudioContext
+
+  // Load localStorage (guarded: storage may be unavailable on some file:// setups)
+  try {
+    const saved = parseInt(localStorage.getItem('hacker_sim_completions') || '0', 10);
+    totalCompletions = isNaN(saved) ? 0 : saved;
+  } catch (e) {
+    totalCompletions = 0;
+  }
+  statCompletionsEl.textContent = totalCompletions;
+
+  // ========== AUDIO HELPERS ==========
+  function getAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  /** Short blip / click sound */
+  function playClickSound() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1000, ctx.currentTime);
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.05);
+    } catch(e) { /* silence */ }
+  }
+
+  /** Deeper thunk for milestones */
+  function playThunkSound() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(120, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.2);
+    } catch(e) { /* silence */ }
+  }
+
+  /** Alarm: alternating 800Hz / 600Hz tones, 3 cycles (fire-and-forget) */
+  function playAlarmSound() {
+    try {
+      const ctx = getAudioCtx();
+      let cycle = 0;
+      const maxCycles = 3;
+
+      function playTone(freq, duration) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + duration);
+      }
+
+      function nextCycle() {
+        if (cycle >= maxCycles) return;
+        playTone(800, 0.35);
+        setTimeout(() => {
+          playTone(600, 0.35);
+          cycle++;
+          setTimeout(nextCycle, 400);
+        }, 380);
+      }
+      nextCycle();
+    } catch(e) { /* silence */ }
+  }
+
+  // ========== MESSAGES ==========
+  // English hacker-log lines for authenticity, with a few Chinese flavor lines.
+  // {R} placeholders become random digits.
+  const hackMessages = [
+    'Accessing Mainframe...',
+    'Bypassing Firewall...',
+    'Decrypting RSA-2048...',
+    'Injecting Payload...',
+    'Routing through proxy [192.168.{R}.{R}{R}]',
+    'Cracking password hash...',
+    'Escalating privileges...',
+    'Downloading /etc/shadow...',
+    'Covering tracks...',
+    'Establishing reverse shell...',
+    'Port scanning 443... OPEN',
+    'Exploit CVE-2024-{R}{R}{R}{R} deployed.',
+    'Root access granted.',
+    'Scanning network topology...',
+    'Deploying 0-day...',
+    'Extracting database...',
+    'Brute-forcing: ████████░░ 78%',
+    'SSH tunnel established.',
+    'Trace attempt detected! Rerouting...',
+    'Injecting SQL: DROP TABLE users; --',
+    'Bypassing 2FA token validation...',
+    'Dumping process memory...',
+    'Uploading webshell to /var/www...',
+    'Buffer overflow @ 0x{R}{R}F{R}A{R}...',
+    'ARP spoofing gateway...',
+    'DNS tunnel active.',
+    'XSS payload delivered.',
+    'Decrypting AES-256-GCM stream...',
+    'Hash collision found! MD5 broken.',
+    'Kernel exploit loaded... CVE-2023-{R}{R}{R}{R}',
+    'Backdoor installed successfully.',
+    'Wiping access logs...',
+    'SOCKS5 chain: 5 nodes connected.',
+    'Evading IDS signatures...',
+    'Compiling exploit from source...',
+    'Rainbow table lookup: 42% match...',
+    'Kerberos ticket forged.',
+    'Lateral movement -> DC-01...',
+    'Dumping credentials via Mimikatz...',
+    'WAF bypass successful.',
+    '正在接入卫星链路...',
+    '目标防御系统已瘫痪...',
+    '数据包深度伪装中...',
+    '量子密钥破译进行中...'
+  ];
+
+  /** Replace {R} placeholders with random digits */
+  function formatMessage(msg) {
+    return msg.replace(/\{R\}/g, () => Math.floor(Math.random() * 10));
+  }
+
+  /** Active message elements (max visible) */
+  let activeMessages = [];
+  const MAX_VISIBLE = 6;
+
+  /** Spawn a new hacking message */
+  function spawnMessage() {
+    const msg = hackMessages[Math.floor(Math.random() * hackMessages.length)];
+    const formatted = formatMessage(msg);
+
+    const el = document.createElement('div');
+    el.className = 'hack-message';
+    el.textContent = ''; // start empty for typewriter
+    messagesContainer.appendChild(el);
+
+    // Typewriter effect
+    let charIndex = 0;
+    const typeInterval = setInterval(() => {
+      if (charIndex < formatted.length) {
+        el.textContent += formatted[charIndex];
+        charIndex++;
+      } else {
+        clearInterval(typeInterval);
+      }
+    }, 18 + Math.random() * 20); // speed varies
+
+    activeMessages.push(el);
+
+    // Remove oldest if over limit
+    while (activeMessages.length > MAX_VISIBLE) {
+      const old = activeMessages.shift();
+      old.classList.add('fading');
+      setTimeout(() => { if (old.parentNode) old.parentNode.removeChild(old); }, 800);
+    }
+
+    // Auto-fade after 2-3 seconds
+    const fadeDelay = 2000 + Math.random() * 1000;
+    setTimeout(() => {
+      el.classList.add('fading');
+      setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 800);
+      // Remove from active list
+      const idx = activeMessages.indexOf(el);
+      if (idx !== -1) activeMessages.splice(idx, 1);
+    }, fadeDelay);
+  }
+
+  // ========== PROGRESS ==========
+  function updateProgressDisplay() {
+    progressBarInner.style.width = progress + '%';
+    progressPercentEl.textContent = Math.floor(progress);
+    statProgressEl.textContent = Math.floor(progress);
+  }
+
+  function addProgress(amount) {
+    if (isComplete) return;
+    const prev = progress;
+    progress = Math.min(100, progress + amount);
+    updateProgressDisplay();
+
+    // Milestone sounds
+    if (prev < 25 && progress >= 25) {
+      playThunkSound();
+    } else if (prev < 50 && progress >= 50) {
+      playThunkSound();
+    } else if (prev < 75 && progress >= 75) {
+      playThunkSound();
+    }
+
+    // Check completion
+    if (progress >= 100 && !isComplete) {
+      triggerCompletion();
+    }
+  }
+
+  function triggerCompletion() {
+    isComplete = true;
+    sessionCompletions++;
+    totalCompletions++;
+    try {
+      localStorage.setItem('hacker_sim_completions', totalCompletions);
+    } catch (e) { /* storage unavailable — counter is session-only */ }
+    statCompletionsEl.textContent = totalCompletions;
+
+    // Alarm plays concurrently with the visuals (never blocks the reset)
+    playAlarmSound();
+
+    // Flash red 3 times (6 toggles at 250ms), then show the success text
+    let flashes = 0;
+    const maxFlash = 6; // 3 on/off cycles
+    function flashRed() {
+      if (flashes >= maxFlash) {
+        showCompletionText();
+        // Reset after 3 seconds
+        setTimeout(resetGame, 3000);
+        return;
+      }
+      if (flashes % 2 === 0) {
+        fxOverlay.innerHTML = '<div class="fx-red-flash"></div>';
+      } else {
+        fxOverlay.innerHTML = '';
+      }
+      flashes++;
+      setTimeout(flashRed, 250);
+    }
+    flashRed();
+  }
+
+  function showCompletionText() {
+    fxOverlay.innerHTML = `
+      <div class="fx-big-text">&#9888;&#65039; 入侵成功！</div>
+      <div class="fx-subtitle">你获得了全球最高权限！</div>
+    `;
+  }
+
+  function resetGame() {
+    progress = 0;
+    isComplete = false;
+    updateProgressDisplay();
+    fxOverlay.innerHTML = '';
+    // Clear messages
+    activeMessages.forEach(m => { if (m.parentNode) m.parentNode.removeChild(m); });
+    activeMessages = [];
+  }
+
+  // Slow auto-increase (0.1% per second)
+  setInterval(() => {
+    if (!isComplete && progress < 100) {
+      addProgress(0.1);
+    }
+  }, 1000);
+
+  // ========== SPECIAL KEYWORD DETECTION ==========
+
+  function checkSpecialKeywords() {
+    const lower = keyBuffer.toLowerCase();
+
+    // "sudo" → red flash
+    if (lower.includes('sudo')) {
+      fxOverlay.innerHTML = '<div class="fx-red-flash"></div>';
+      const bigText = document.createElement('div');
+      bigText.className = 'fx-big-text';
+      bigText.textContent = '⚠️ ROOT ACCESS GRANTED';
+      fxOverlay.appendChild(bigText);
+      setTimeout(() => { fxOverlay.innerHTML = ''; }, 1500);
+      keyBuffer = ''; // clear buffer to prevent re-trigger
+    }
+
+    // "rm -rf" → crack effect
+    if (lower.includes('rm -rf') || lower.includes('rm -rf /')) {
+      drawCrackLines();
+      crackOverlay.classList.add('show');
+      const rmText = document.createElement('div');
+      rmText.className = 'fx-big-text';
+      rmText.textContent = '💀 你删除了整个系统！干得漂亮……';
+      fxOverlay.appendChild(rmText);
+      setTimeout(() => {
+        crackOverlay.classList.remove('show');
+        fxOverlay.innerHTML = '';
+      }, 1500);
+      keyBuffer = '';
+    }
+
+    // "hack" or "hackerman" → bonus progress
+    if (lower.includes('hackerman') || lower.includes('hack')) {
+      addProgress(10);
+      spawnMessage(); // extra message as visual feedback
+      // Only clear the matched part
+      if (lower.includes('hackerman')) {
+        keyBuffer = keyBuffer.replace(/hackerman/gi, '');
+      } else {
+        keyBuffer = keyBuffer.replace(/hack/gi, '');
+      }
+    }
+
+    // "matrix" or "neo" → white rain
+    if (lower.includes('matrix') || lower.includes('neo')) {
+      rainColorMode = 'white';
+      setTimeout(() => { rainColorMode = 'green'; }, 2000);
+      keyBuffer = '';
+    }
+
+    // "cat" or "喵" → ASCII cat
+    if (lower.includes('cat') || lower.includes('喵')) {
+      asciiCat.classList.add('show');
+      setTimeout(() => { asciiCat.classList.remove('show'); }, 2500);
+      keyBuffer = '';
+    }
+  }
+
+  // ========== CRACK / FRACTURE LINES ==========
+  function drawCrackLines() {
+    crackOverlay.width = window.innerWidth;
+    crackOverlay.height = window.innerHeight;
+    crackCtx.clearRect(0, 0, crackOverlay.width, crackOverlay.height);
+
+    crackCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+    crackCtx.lineWidth = 2;
+    crackCtx.shadowColor = 'rgba(255, 0, 0, 0.6)';
+    crackCtx.shadowBlur = 5;
+
+    // Draw random fracture lines
+    const w = crackOverlay.width;
+    const h = crackOverlay.height;
+
+    for (let i = 0; i < 15 + Math.random() * 10; i++) {
+      crackCtx.beginPath();
+      const startX = Math.random() * w;
+      const startY = Math.random() * h * 0.3;
+      crackCtx.moveTo(startX, startY);
+
+      let cx = startX;
+      let cy = startY;
+      const segments = 3 + Math.floor(Math.random() * 5);
+      for (let j = 0; j < segments; j++) {
+        cx += (Math.random() - 0.5) * 200;
+        cy += 50 + Math.random() * 120;
+        crackCtx.lineTo(cx, cy);
+      }
+      crackCtx.stroke();
+    }
+    crackCtx.shadowBlur = 0;
+  }
+
+  // ========== MATRIX RAIN ==========
+
+  // ---- Character Sets ----
+  const greenChars = '0123456789';
+  const katakana = 'ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ';
+  const asciiSymbols = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`';
+  const allChars = greenChars + katakana + asciiSymbols;
+
+  let rainColorMode = 'green'; // 'green' or 'white'
+
+  // ---- Rain State ----
+  const FONT_SIZE = 16;
+  let columns = [];
+  let canvasWidth, canvasHeight;
+
+  function getColumnCount() {
+    return Math.floor(canvasWidth / FONT_SIZE);
+  }
+
+  function randomChar() {
+    return allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  function initColumns(count) {
+    columns = [];
+    for (let i = 0; i < count; i++) {
+      columns.push({
+        x: i * FONT_SIZE,
+        y: Math.random() * canvasHeight, // stagger start positions
+        speed: 1.5 + Math.random() * 4.5, // chars per frame (at 30fps effective)
+        chars: [],
+        trailLength: 8 + Math.floor(Math.random() * 20),
+      });
+      // Pre-fill character array for the trail
+      for (let j = 0; j < columns[i].trailLength; j++) {
+        columns[i].chars.push(randomChar());
+      }
+    }
+  }
+
+  function resizeCanvas() {
+    canvasWidth = window.innerWidth;
+    canvasHeight = window.innerHeight;
+    matrixCanvas.width = canvasWidth;
+    matrixCanvas.height = canvasHeight;
+
+    const colCount = getColumnCount();
+    if (columns.length !== colCount) {
+      initColumns(colCount);
+    } else {
+      // Update x positions
+      for (let i = 0; i < columns.length; i++) {
+        columns[i].x = i * FONT_SIZE;
+      }
+    }
+  }
+
+  // ---- Frame Limiter (target ~30fps) ----
+  let lastRainTime = 0;
+  const RAIN_INTERVAL = 1000 / 30; // ~33ms
+
+  function drawRain(timestamp) {
+    // Frame skip for ~30fps
+    if (timestamp - lastRainTime < RAIN_INTERVAL) return;
+    lastRainTime = timestamp;
+
+    // Semi-transparent black to fade previous frame (trail effect)
+    matrixCtx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    matrixCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    matrixCtx.font = FONT_SIZE + 'px monospace';
+    matrixCtx.textBaseline = 'top';
+
+    const baseColor = rainColorMode === 'white' ? '#ffffff' : '#0f0';
+    const headColor = rainColorMode === 'white' ? '#ffffff' : '#aaffaa';
+
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+
+      // Randomly change characters (flicker)
+      for (let j = 0; j < col.chars.length; j++) {
+        if (Math.random() < 0.02) {
+          col.chars[j] = randomChar();
+        }
+      }
+
+      // Draw trailing characters (older = dimmer)
+      for (let j = 0; j < col.trailLength; j++) {
+        const charY = col.y - j * FONT_SIZE;
+        if (charY < -FONT_SIZE || charY > canvasHeight) continue;
+
+        const alpha = 1 - (j / col.trailLength); // fade from 1 to 0
+        if (alpha <= 0.05) continue;
+
+        const char = col.chars[j] || randomChar();
+
+        if (j === 0) {
+          // Leading character: brightest, with glow
+          matrixCtx.fillStyle = headColor;
+          matrixCtx.shadowColor = headColor;
+          matrixCtx.shadowBlur = 10;
+        } else {
+          matrixCtx.fillStyle = `rgba(${rainColorMode === 'white' ? '255,255,255' : '0,255,0'}, ${alpha.toFixed(2)})`;
+          matrixCtx.shadowColor = 'transparent';
+          matrixCtx.shadowBlur = 0;
+        }
+
+        matrixCtx.fillText(char, col.x, Math.floor(charY));
+      }
+
+      // Reset shadow
+      matrixCtx.shadowColor = 'transparent';
+      matrixCtx.shadowBlur = 0;
+
+      // Move the column down
+      col.y += col.speed;
+
+      // If the column has scrolled past the screen, reset to top
+      if (col.y - col.trailLength * FONT_SIZE > canvasHeight) {
+        col.y = -col.trailLength * FONT_SIZE * Math.random();
+        col.speed = 1.5 + Math.random() * 4.5;
+        col.trailLength = 8 + Math.floor(Math.random() * 20);
+        // Regenerate chars
+        col.chars = [];
+        for (let j = 0; j < col.trailLength; j++) {
+          col.chars.push(randomChar());
+        }
+      }
+    }
+  }
+
+  // ========== ANIMATION LOOP ==========
+  function animate(timestamp) {
+    drawRain(timestamp);
+    requestAnimationFrame(animate);
+  }
+
+  // ========== KEYBOARD INPUT ==========
+  document.addEventListener('keydown', function(e) {
+    if (isComplete) return; // ignore input during completion
+
+    // Ignore modifier-only keys, but accept everything else
+    if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' ||
+        e.key === 'Meta' || e.key === 'CapsLock' || e.key === 'Tab' ||
+        e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+        e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+        e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' ||
+        e.key === 'PageDown' || e.key === 'Insert' || e.key === 'Delete' ||
+        e.key === 'NumLock' || e.key === 'ScrollLock' || e.key === 'Pause' ||
+        e.key === 'ContextMenu' || e.key === 'OS' || e.key === 'Fn' ||
+        e.key === 'F1' || e.key === 'F2' || e.key === 'F3' || e.key === 'F4' ||
+        e.key === 'F5' || e.key === 'F6' || e.key === 'F7' || e.key === 'F8' ||
+        e.key === 'F9' || e.key === 'F10' || e.key === 'F11' || e.key === 'F12') {
+      return;
+    }
+
+    // Prevent default for some keys (but don't block useful shortcuts)
+    // Let Ctrl+ combos through (but count the letter key)
+
+    // Count keystroke
+    keystrokeCount++;
+    statKeystrokesEl.textContent = keystrokeCount;
+
+    // Add to key buffer (printable characters, incl. space; Backspace erases)
+    if (e.key.length === 1) {
+      keyBuffer += e.key;
+      // Keep buffer to last 30 chars
+      if (keyBuffer.length > 30) {
+        keyBuffer = keyBuffer.slice(-30);
+      }
+    } else if (e.key === 'Backspace') {
+      keyBuffer = keyBuffer.slice(0, -1);
+    } else if (e.key === 'Enter') {
+      keyBuffer += '\n';
+      if (keyBuffer.length > 30) keyBuffer = keyBuffer.slice(-30);
+    }
+
+    // Play click sound
+    playClickSound();
+
+    // Spawn a hacking message on every keystroke (eviction keeps the stack tidy)
+    spawnMessage();
+
+    // Increase progress (0.3 - 1.5% per keystroke)
+    const progressGain = 0.3 + Math.random() * 1.2;
+    addProgress(progressGain);
+
+    // Check special keywords
+    checkSpecialKeywords();
+  });
+
+  // ========== WINDOW RESIZE ==========
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    // Resize (and thereby clear) the crack canvas; lines are redrawn on trigger
+    crackOverlay.width = window.innerWidth;
+    crackOverlay.height = window.innerHeight;
+  });
+
+  // ========== INIT ==========
+  function init() {
+    resizeCanvas();
+    crackOverlay.width = window.innerWidth;
+    crackOverlay.height = window.innerHeight;
+    updateProgressDisplay();
+    requestAnimationFrame(animate);
+  }
+
+  init();
+
+})();
+</script>
+
+</body>
+</html>
